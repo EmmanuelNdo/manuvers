@@ -1,0 +1,9 @@
+{
+  "identifier": "default",
+  "description": "Permissions de la fenêtre principale de Manuvers",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging"
+  ]
+}

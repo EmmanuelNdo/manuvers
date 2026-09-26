@@ -1,0 +1,79 @@
+# Manuvers
+
+Avatar 3D compagnon qui vit sur un écran dédié et réagit en temps réel aux automatisations de Manu (tâches planifiées Claude, Kleos, sessions Claude Code). Nom : clin d'œil au Bobiverse (« Je suis Légion ») : se multiplier.
+
+Utilisateur : Manu (Emmanuel Ndofunsu), MacBook Pro Apple Silicon, écran externe dédié à l'avatar.
+
+## Architecture
+
+```
+src/                  Frontend statique, servi tel quel par Tauri (aucun bundler)
+  index.html          Structure : scène, bulle, dernières notifications, tiroir de réglages
+  styles.css          Styles, thèmes clair/sombre, mode flottant transparent
+  avatar.js           Avatar Three.js procédural : window.createAvatar(canvas, stage)
+  ntfy.js             Client ntfy robuste : flux JSON, jeton, rattrapage "since", reconnexion
+  app.js              Réglages, file de notifications, sons, voix, écrans, veille, menu
+  vendor/three.min.js Three.js r128 (UMD) embarqué : pas de CDN
+  fonts/              Polices woff2 embarquées (OFL)
+src-tauri/            Coque native Tauri v2, volontairement mince
+  src/main.rs         Commandes : list_monitors, apply_mode, set_click_through, set_keep_awake, set_autostart
+                      + icône de barre des menus (événement "tray" émis vers le frontend)
+  tauri.conf.json     Fenêtre transparente sans bordure, macOSPrivateApi, CSP stricte
+scripts/notify-test.sh  Envoi d'une notification de test
+docs/INTEGRATIONS.md    Brancher tâches planifiées, hooks Claude Code, Kleos
+```
+
+Flux : une automatisation publie un message sur un sujet ntfy → `ntfy.js` le reçoit → `app.js` le classe (info, success, alerte, news selon les tags et la priorité) → l'avatar joue l'animation correspondante (wave, jump, shake, lean), un son synthétisé retentit, une bulle affiche titre et message, la voix le lit si activée.
+
+Les réglages sont stockés dans le `localStorage` du webview (clé `manuvers:settings`) : serveur, sujet, jeton, dernier identifiant reçu, mode, écran, options.
+
+## Règles du projet
+
+- Interface en français, vouvoiement. Jamais de tiret cadratin (U+2014) dans les textes : utiliser deux-points, virgule ou point.
+- Aucune ressource externe au chargement : tout est local (Three.js, polices). La seule connexion sortante est ntfy.
+- Garder le Rust minimal : placement des fenêtres et fonctions système. La logique reste en JavaScript.
+- Le frontend doit continuer à fonctionner dans un simple navigateur (`npm run preview`), sans les fonctions d'écran.
+- Ne jamais commiter de jeton ntfy ni de sujet réel.
+
+## Installation sur le Mac (première fois)
+
+1. Outils :
+   - `xcode-select -p` ; si absent : `xcode-select --install` (attendre la fin de l'installation graphique).
+   - Rust : `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y`, puis `source "$HOME/.cargo/env"`.
+   - Node 18 ou plus : `node -v` ; sinon `brew install node`.
+2. Dépendances : `npm install`
+3. Test en développement : `npm run dev` (première compilation : quelques minutes).
+4. Application finale : `npm run build`, puis copier `src-tauri/target/release/bundle/macos/Manuvers.app` dans `/Applications` (remplacer l'ancienne version si besoin).
+5. Lancer Manuvers depuis `/Applications`. Au premier lancement :
+   - l'application s'inscrit au démarrage de session (réglage « Lancer Manuvers à l'ouverture de session ») ;
+   - elle se place en plein écran sur le premier écran externe, sinon sur l'écran principal ;
+   - ouvrir les réglages (touche R ou menu Manuvers dans la barre des menus) pour relever le sujet ntfy généré.
+6. Vérifier avec `bash scripts/notify-test.sh <sujet> success "Test" "Bonjour"`.
+
+Compilée localement, l'application n'a pas d'attribut de quarantaine. Si macOS la bloque malgré tout : `xattr -dr com.apple.quarantine /Applications/Manuvers.app`.
+
+## Points à vérifier sur macOS (non testables depuis Linux)
+
+Le Rust a été vérifié avec `cargo check` sous Linux et le frontend testé dans Chromium (réception ntfy réelle et rattrapage). À contrôler sur le Mac :
+
+- [ ] Plein écran sur l'écran externe via `apply_mode("scene")` : la fenêtre doit d'abord être déplacée sur l'écran cible, puis passer en plein écran. Si macOS l'ouvre sur le mauvais écran, augmenter le délai avant `set_fullscreen(true)` ou utiliser une fenêtre sans bordure à la taille de l'écran au lieu du plein écran natif.
+- [ ] Mode flottant : fond réellement transparent (nécessite `macOSPrivateApi: true`, déjà activé).
+- [ ] Son : WKWebView peut exiger un clic avant de jouer de l'audio. Le bouton « Activer le son » apparaît alors ; vérifier qu'un clic suffit et que le son continue ensuite.
+- [ ] Voix française (`speechSynthesis`, voix Thomas ou Amélie selon le système).
+- [ ] `caffeinate` : pendant les heures réglées, `pgrep -fl caffeinate` doit montrer le processus lié à Manuvers.
+- [ ] Icône de barre des menus lisible en mode clair et sombre (sinon générer une icône « template » monochrome).
+- [ ] Débrancher puis rebrancher l'écran externe : Manuvers se replie sur l'écran principal puis revient (vérification toutes les 15 s).
+
+## Commandes utiles
+
+- `npm run dev` : développement avec rechargement.
+- `npm run build` : produit `Manuvers.app` ; `npm run build:dmg` produit aussi un .dmg.
+- `npm run preview` : frontend seul dans le navigateur sur http://localhost:8765 (ajouter `?topic=...`).
+- `bash scripts/notify-test.sh <sujet> <info|success|alerte|news> "Titre" "Message"`.
+
+## Feuille de route
+
+- **V1 (actuelle)** : avatar procédural, 4 réactions, bulle, sons, voix, ntfy robuste, modes scène et flottant, démarrage auto, écran maintenu allumé.
+- **V2** : avatar personnel au format VRM (VRoid Studio) chargé avec `@pixiv/three-vrm` (à embarquer localement), animations Mixamo, humeurs par source (Kleos, veille, mails), clic sur la bulle pour ouvrir la fiche Kleos, résumé vocal du matin.
+- **V3** : conversation. Micro, transcription, appel à l'API Claude avec les connecteurs (Kleos, mails, Notion), réponse vocale avec synchronisation labiale.
+- Sécurisation : sujet réservé avec jeton sur ntfy.sh, ou serveur ntfy auto-hébergé (Docker sur un petit VPS).

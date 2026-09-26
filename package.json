@@ -1,0 +1,17 @@
+{
+  "name": "manuvers",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Manuvers : l'avatar compagnon qui réagit aux automatisations de Manu",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build --bundles app",
+    "build:dmg": "tauri build",
+    "preview": "python3 -m http.server 8765 --directory src",
+    "notify": "bash scripts/notify-test.sh"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

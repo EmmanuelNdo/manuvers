@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="fr" data-mode="scene">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Manuvers</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app" id="app">
+  <main class="stage" id="stage">
+    <canvas id="scene" aria-label="Avatar 3D animé"></canvas>
+
+    <div class="drag" data-tauri-drag-region title="Déplacer Manuvers"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-name">Manuvers</span>
+        <span class="brand-sub" id="clock"></span>
+      </div>
+      <div class="top-actions">
+        <span class="status" id="status" data-state="off" title=""><i></i><span id="statusText">Non connecté</span></span>
+        <button class="pill primary" id="soundBtn" hidden>Activer le son</button>
+        <button class="pill icon" id="settingsBtn" title="Réglages (touche R)" aria-label="Ouvrir les réglages">Réglages</button>
+      </div>
+    </header>
+
+    <section class="recent" id="recent" aria-label="Dernières notifications">
+      <h2>Dernières notifications</h2>
+      <ol id="recentList"></ol>
+    </section>
+
+    <div class="bubble" id="bubble" hidden role="status" aria-live="polite">
+      <div class="bubble-head"><span class="chip" id="bubbleType"></span><span class="bubble-time" id="bubbleTime"></span></div>
+      <strong id="bubbleTitle"></strong>
+      <p id="bubbleMsg"></p>
+      <a id="bubbleLink" href="#" target="_blank" rel="noopener" hidden>Ouvrir le détail</a>
+      <div class="dismiss">Cliquez pour fermer</div>
+    </div>
+    <div class="queue" id="queue" hidden></div>
+  </main>
+
+  <aside class="drawer" id="drawer" hidden aria-label="Réglages">
+    <div class="drawer-head">
+      <h1>Réglages</h1>
+      <button class="pill" id="closeDrawer">Fermer</button>
+    </div>
+
+    <section>
+      <h2>Tester les réactions</h2>
+      <div class="sim-grid">
+        <button class="sim t-info" data-sim="info"><i class="dot"></i><span class="lbl">Automatisation</span><span class="act">Il vous fait signe</span></button>
+        <button class="sim t-success" data-sim="success"><i class="dot"></i><span class="lbl">Bonne nouvelle</span><span class="act">Il saute de joie</span></button>
+        <button class="sim t-alerte" data-sim="alerte"><i class="dot"></i><span class="lbl">À traiter</span><span class="act">Il s'inquiète</span></button>
+        <button class="sim t-news" data-sim="news"><i class="dot"></i><span class="lbl">Veille</span><span class="act">Il se penche vers vous</span></button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Canal de notifications (ntfy)</h2>
+      <label class="field" for="server">Serveur
+        <input type="text" id="server" spellcheck="false" autocomplete="off" placeholder="https://ntfy.sh">
+      </label>
+      <label class="field" for="topic">Sujet
+        <input type="text" id="topic" spellcheck="false" autocomplete="off">
+      </label>
+      <label class="field" for="token">Jeton d'accès (facultatif)
+        <input type="password" id="token" spellcheck="false" autocomplete="off" placeholder="tk_...">
+      </label>
+      <div class="row"><button class="btn" id="connectBtn">Enregistrer et connecter</button></div>
+      <p class="hint" id="connHint"></p>
+    </section>
+
+    <section class="app-only">
+      <h2>Affichage</h2>
+      <label class="field" for="mode">Mode
+        <select id="mode">
+          <option value="scene">Scène : plein écran sur l'écran dédié</option>
+          <option value="floating">Flottant : petit avatar sur le bureau</option>
+        </select>
+      </label>
+      <label class="field" for="monitor">Écran dédié
+        <select id="monitor"></select>
+      </label>
+      <p class="hint">Si l'écran dédié est débranché, Manuvers se replie sur l'écran principal et y retourne dès qu'il revient.</p>
+      <div class="toggles">
+        <label for="optClick"><input type="checkbox" id="optClick"> Mode flottant : laisser passer les clics (menu Manuvers pour reprendre la main)</label>
+      </div>
+    </section>
+
+    <section class="app-only">
+      <h2>Écran allumé</h2>
+      <div class="toggles">
+        <label for="optAwake"><input type="checkbox" id="optAwake"> Empêcher la mise en veille de l'écran</label>
+      </div>
+      <div class="row hours">
+        <label class="field" for="awakeFrom">De <input type="time" id="awakeFrom"></label>
+        <label class="field" for="awakeTo">À <input type="time" id="awakeTo"></label>
+      </div>
+      <div class="toggles">
+        <label for="optWeekdays"><input type="checkbox" id="optWeekdays"> Du lundi au vendredi seulement</label>
+      </div>
+    </section>
+
+    <section>
+      <h2>Comportement</h2>
+      <div class="toggles">
+        <label for="optSound"><input type="checkbox" id="optSound"> Jouer un son à chaque notification</label>
+        <label for="optVoice"><input type="checkbox" id="optVoice"> Lire le message à voix haute</label>
+        <label for="optBored"><input type="checkbox" id="optBored"> Petites animations quand rien ne se passe</label>
+        <label for="optAutostart" class="app-only"><input type="checkbox" id="optAutostart"> Lancer Manuvers à l'ouverture de session</label>
+      </div>
+    </section>
+
+    <section>
+      <h2>Envoyer une notification de test</h2>
+      <div class="code"><pre id="curlSnippet"></pre><button class="btn ghost" data-copy="curlSnippet">Copier</button></div>
+      <div class="legend">
+        <span class="chip t-info">info</span><code>Tags: info (par défaut)</code>
+        <span class="chip t-success">success</span><code>Tags: success, prospect</code>
+        <span class="chip t-alerte">alerte</span><code>Tags: alerte, ou Priority: 4</code>
+        <span class="chip t-news">news</span><code>Tags: news, veille</code>
+      </div>
+    </section>
+
+    <section>
+      <h2>Journal complet</h2>
+      <ol class="log" id="log"></ol>
+    </section>
+  </aside>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script src="avatar.js"></script>
+<script src="ntfy.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
