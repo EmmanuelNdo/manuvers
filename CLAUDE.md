@@ -12,9 +12,13 @@ src/                  Frontend statique, servi tel quel par Tauri (aucun bundler
   styles.css          Styles, thèmes clair/sombre, mode flottant transparent
   avatar.js           Lambert en 3D, procédural (Three.js) : window.createAvatar(canvas, stage)
   persona.js          Personnalité de Lambert : répliques, refus, bouderie, remarques (aucun DOM)
+  voice.js            Voix de Lambert : Piper local + filtre de droïde (WebAudio), repli sur la voix système
+  voice-worker.js     Worker de synthèse : phonétisation espeak-ng (WASM) puis inférence ONNX, phrase par phrase
+  voices/             Modèle de voix Piper (fr_FR-tom-medium, 44,1 kHz)
   ntfy.js             Client ntfy robuste : flux JSON, jeton, rattrapage "since", reconnexion
   app.js              Réglages, file de notifications, sons, voix, écrans, veille, menu
   vendor/three.min.js Three.js r128 (UMD) embarqué : pas de CDN
+  vendor/onnx/        onnxruntime-web (WASM), vendor/piper/ : phonétiseur Piper ; licences dans vendor/LICENCES.md
   fonts/              Polices woff2 embarquées (OFL)
 src-tauri/            Coque native Tauri v2, volontairement mince
   src/main.rs         Commandes : list_monitors, apply_mode, set_click_through, set_keep_awake, set_autostart
@@ -46,6 +50,7 @@ Droïde de protocole et de cartographie, première réplique de la Légion Manuv
 - Il sait dire non : silence la nuit sauf priorité 5, bouderie après cinq clics en douze secondes, lassitude à la troisième alerte identique en deux heures, « allez vous coucher » après minuit.
 - Apparence : céramique ivoire, cuivre, mécanique graphite, avant-bras gauche bleu dépareillé (pièce de rechange assumée), plastron gravé de courbes de niveau, rose des vents lumineuse, monocle de visée sur l'œil droit, prisme de géomètre sur le crâne. Les yeux prennent la couleur de l'humeur.
 - Ajouter des répliques dans `LINES` de `persona.js` en respectant ces règles et l'absence de tiret cadratin.
+- Voix : Piper « tom » calculé sur l'appareil, un peu plus aigu et vif (`PITCH`, `LENGTH` dans `voice.js`), passé dans un filtre de droïde réglable (« Timbre de droïde » dans les réglages). `normalize()` adapte le texte à l'oral (LB-93, heures, pourcentages, sigles). La bouche suit le niveau sonore réel.
 
 ## Installation sur le Mac (première fois)
 
@@ -71,7 +76,7 @@ Le Rust a été vérifié avec `cargo check` sous Linux et le frontend testé da
 - [ ] Plein écran sur l'écran externe via `apply_mode("scene")` : la fenêtre doit d'abord être déplacée sur l'écran cible, puis passer en plein écran. Si macOS l'ouvre sur le mauvais écran, augmenter le délai avant `set_fullscreen(true)` ou utiliser une fenêtre sans bordure à la taille de l'écran au lieu du plein écran natif.
 - [ ] Mode flottant : fond réellement transparent (nécessite `macOSPrivateApi: true`, déjà activé).
 - [ ] Son : WKWebView peut exiger un clic avant de jouer de l'audio. Le bouton « Activer le son » apparaît alors ; vérifier qu'un clic suffit et que le son continue ensuite.
-- [ ] Voix française (`speechSynthesis`, voix Thomas ou Amélie selon le système).
+- [ ] Voix de Lambert (Piper) dans WKWebView : l'indication « Voix de Lambert prête » doit apparaître dans les réglages après activation. Sinon, la voix du système prend le relais (voir la console web). Vérifier aussi que la première phrase arrive en moins de deux secondes.
 - [ ] `caffeinate` : pendant les heures réglées, `pgrep -fl caffeinate` doit montrer le processus lié à Manuvers.
 - [ ] Icône de barre des menus lisible en mode clair et sombre (sinon générer une icône « template » monochrome).
 - [ ] Débrancher puis rebrancher l'écran externe : Manuvers se replie sur l'écran principal puis revient (vérification toutes les 15 s).
@@ -87,7 +92,8 @@ Le Rust a été vérifié avec `cargo check` sous Linux et le frontend testé da
 ## Feuille de route
 
 - **V1** : avatar procédural, 4 réactions, bulle, sons, voix, ntfy robuste, modes scène et flottant, démarrage auto, écran maintenu allumé.
-- **V1.1 (actuelle)** : Lambert, droïde LB-93 : personnalité, commentaires, refus, bouderie, remarques spontanées, heures de silence, gestes expressifs, servomoteurs.
+- **V1.1** : Lambert, droïde LB-93 : personnalité, commentaires, refus, bouderie, remarques spontanées, heures de silence, gestes expressifs, servomoteurs.
+- **V1.2 (actuelle)** : voix locale Piper avec filtre de droïde et bouche synchronisée sur le son.
 - **V2** : avatar personnel au format VRM (VRoid Studio) chargé avec `@pixiv/three-vrm` (à embarquer localement), animations Mixamo, humeurs par source (Kleos, veille, mails), clic sur la bulle pour ouvrir la fiche Kleos, résumé vocal du matin.
 - **V3** : conversation. Micro, transcription, appel à l'API Claude avec les connecteurs (Kleos, mails, Notion), réponse vocale avec synchronisation labiale.
 - Sécurisation : sujet réservé avec jeton sur ntfy.sh, ou serveur ntfy auto-hébergé (Docker sur un petit VPS).

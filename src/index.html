@@ -111,6 +111,10 @@
         <label for="optChatty"><input type="checkbox" id="optChatty"> Ses remarques spontanées quand rien ne se passe</label>
         <label for="optQuiet"><input type="checkbox" id="optQuiet"> Il se tait la nuit (sauf priorité maximale)</label>
       </div>
+      <label class="field" for="timbre">Timbre de droïde : de la voix nette au boîtier métallique
+        <input type="range" id="timbre" min="0" max="100" step="5">
+      </label>
+      <p class="hint" id="voiceHint"></p>
       <div class="row hours">
         <label class="field" for="quietFrom">Silence de <input type="time" id="quietFrom"></label>
         <label class="field" for="quietTo">À <input type="time" id="quietTo"></label>
@@ -121,7 +125,7 @@
       <h2>Comportement</h2>
       <div class="toggles">
         <label for="optSound"><input type="checkbox" id="optSound"> Jouer un son à chaque notification</label>
-        <label for="optVoice"><input type="checkbox" id="optVoice"> Lire le message à voix haute</label>
+        <label for="optVoice"><input type="checkbox" id="optVoice"> Lambert lit les notifications à voix haute</label>
         <label for="optBored"><input type="checkbox" id="optBored"> Petites animations quand rien ne se passe</label>
         <label for="optAutostart" class="app-only"><input type="checkbox" id="optAutostart"> Lancer Manuvers à l'ouverture de session</label>
       </div>
@@ -148,6 +152,7 @@
 <script src="vendor/three.min.js"></script>
 <script src="avatar.js"></script>
 <script src="persona.js"></script>
+<script src="voice.js"></script>
 <script src="ntfy.js"></script>
 <script src="app.js"></script>
 </body>

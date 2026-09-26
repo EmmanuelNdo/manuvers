@@ -15,7 +15,7 @@ const DEFAULTS = {
   server:"https://ntfy.sh", topic:"", token:"", lastId:"",
   mode:"scene", monitor:"", clickThrough:false,
   sound:true, voice:false, bored:true, autostart:true,
-  quips:true, chatty:true, quiet:true, quietFrom:"21:30", quietTo:"07:30", met:false,
+  quips:true, chatty:true, quiet:true, quietFrom:"21:30", quietTo:"07:30", met:false, timbre:0.6,
   keepAwake:true, awakeFrom:"08:30", awakeTo:"19:00", weekdays:true
 };
 const S = (() => {
@@ -216,7 +216,13 @@ function servo(name){
   g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(0.035, t0 + 0.03); g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
   o.connect(f).connect(g).connect(audio.destination); o.start(t0); o.stop(t0 + dur + 0.05);
 }
-/* Voix : le phrasé de Lambert est un peu plus aigu et vif que la voix système par défaut. */
+/* Voix : Piper en local avec filtre de droïde (voice.js), bouche animée par le niveau sonore réel. */
+const VOICE_STATE = { off:"", loading:"Chargement de la voix de Lambert…", ready:"Voix de Lambert prête, calculée sur cet appareil.", failed:"Voix locale indisponible ici : la voix du système prend le relais." };
+const voice = window.createVoice({
+  getAudio:() => audio,
+  onLevel:v => avatar.setVoiceLevel(v),
+  onState:st => { $("voiceHint").textContent = VOICE_STATE[st] || ""; }
+});
 let talkTimer = null;
 function talkFor(text){
   clearTimeout(talkTimer);
@@ -225,18 +231,13 @@ function talkFor(text){
   talkTimer = setTimeout(() => avatar.setTalking(false), Math.min(7000, 900 + text.length*38));
 }
 function speak(parts){
-  const text = parts.filter(Boolean).map(s => s.trim().replace(/[.!?…]?$/, m => m || ".")).join(" ");
-  if(!S.voice || !window.speechSynthesis || !text) return talkFor(text);
-  try{
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "fr-FR"; u.rate = 1.06; u.pitch = 1.15;
-    const voices = speechSynthesis.getVoices().filter(v => v.lang && v.lang.toLowerCase().startsWith("fr"));
-    const v = voices.find(v => /thomas/i.test(v.name)) || voices.find(v => /fr-fr/i.test(v.lang)) || voices[0];
-    if(v) u.voice = v;
-    u.onstart = () => { clearTimeout(talkTimer); avatar.setTalking(true); };
-    u.onend = u.onerror = () => avatar.setTalking(false);
-    speechSynthesis.cancel(); speechSynthesis.speak(u);
-  }catch(e){ talkFor(text); }
+  const text = parts.filter(Boolean).map(s => s.trim().replace(/[.!?…:]?$/, m => m || ".")).join(" ");
+  if(!S.voice || !text || !audio || audio.state !== "running") return talkFor(text);
+  talkFor(text);   // la bouche bouge pendant le calcul de la première phrase
+  voice.speak(text, {
+    onstart:() => { clearTimeout(talkTimer); avatar.setTalking(true); },
+    onend:() => avatar.setTalking(false)
+  });
 }
 
 /* ---------- ntfy ---------- */
@@ -356,7 +357,9 @@ setInterval(() => {
   const now = Date.now();
   if(S.chatty && S.quips && now > nextRemark && now - lastActivity > 5*60000 && !(S.quiet && inQuietHours())){
     nextRemark = now + (12 + Math.random()*14)*60000;
-    enqueue({ type:"persona", title:"", message:persona.remark(new Date()), date:new Date(), silent:true, action:"look" });
+    const remark = persona.remark(new Date());
+    enqueue({ type:"persona", title:"", message:remark, date:new Date(), silent:true, action:"look" });
+    if(S.voice) speak([remark]);
     return;
   }
   if(!S.bored || now < nextBored) return;
@@ -396,12 +399,14 @@ function syncForm(){
   $("server").value = S.server; $("topic").value = S.topic; $("token").value = S.token;
   $("mode").value = S.mode; $("awakeFrom").value = S.awakeFrom; $("awakeTo").value = S.awakeTo;
   $("quietFrom").value = S.quietFrom; $("quietTo").value = S.quietTo;
+  $("timbre").value = Math.round(S.timbre*100);
   for(const [id, k] of Object.entries(CHECKS)) $(id).checked = !!S[k];
 }
 for(const [id, k] of Object.entries(CHECKS)){
   $(id).addEventListener("change", () => {
     S[k] = $(id).checked; save();
     if(k === "sound") ensureAudio();
+    if(k === "voice"){ if(S.voice){ ensureAudio(); voice.preload(); setTimeout(() => speak(["Voix activée. Lambert, à votre écoute."]), 400); } else voice.cancel(); }
     if(k === "autostart" && invoke) invoke("set_autostart", { enabled:S.autostart }).catch(e => console.warn(e));
     if(k === "keepAwake" || k === "weekdays"){ awakeOn = null; updateAwake(); }
     if(k === "clickThrough") applyScreen();
@@ -409,6 +414,9 @@ for(const [id, k] of Object.entries(CHECKS)){
 }
 ["awakeFrom","awakeTo"].forEach(id => $(id).addEventListener("change", () => { S[id] = $(id).value; save(); awakeOn = null; updateAwake(); }));
 ["quietFrom","quietTo"].forEach(id => $(id).addEventListener("change", () => { S[id] = $(id).value; save(); }));
+$("timbre").addEventListener("input", () => { S.timbre = $("timbre").value/100; voice.setTimbre(S.timbre); });
+$("timbre").addEventListener("change", () => { save(); if(S.voice){ ensureAudio(); speak(["Voici mon timbre. " + persona.SEAL]); } });
+voice.setTimbre(S.timbre);
 $("mode").addEventListener("change", () => { S.mode = $("mode").value; save(); applyScreen(); });
 $("monitor").addEventListener("change", () => { S.monitor = $("monitor").value; save(); if(S.mode === "scene") applyScreen(); });
 $("connectBtn").addEventListener("click", () => {
@@ -458,6 +466,7 @@ if(listen){
   if(invoke) invoke("set_autostart", { enabled:S.autostart }).catch(e => console.warn("Démarrage auto :", e));
   updateAwake();
   ensureAudio();
+  if(S.voice) voice.preload();
   connect();
   setTimeout(() => {
     if(current || queue.length) return;
