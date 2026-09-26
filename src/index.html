@@ -21,6 +21,7 @@
       <div class="top-actions">
         <span class="status" id="status" data-state="off" title=""><i></i><span id="statusText">Non connecté</span></span>
         <button class="pill primary" id="soundBtn" hidden>Activer le son</button>
+        <button class="pill" id="talkBtn" title="Parler à Lambert : maintenir Espace pour parler, touche T pour écrire">Parler</button>
         <button class="pill icon" id="settingsBtn" title="Réglages (touche R)" aria-label="Ouvrir les réglages">Réglages</button>
       </div>
     </header>
@@ -39,6 +40,14 @@
       <div class="dismiss">Cliquez pour fermer</div>
     </div>
     <div class="queue" id="queue" hidden></div>
+
+    <form class="talk" id="talk" hidden autocomplete="off">
+      <span class="talk-state" id="talkState">À vous</span>
+      <div class="talk-row">
+        <input type="text" id="talkInput" placeholder="Écrivez à Lambert, ou maintenez Espace pour parler" aria-label="Message pour Lambert">
+        <button type="button" class="mic" id="micBtn" aria-label="Parler à Lambert" title="Parler"><i></i></button>
+      </div>
+    </form>
   </main>
 
   <aside class="drawer" id="drawer" hidden aria-label="Réglages">
@@ -55,6 +64,29 @@
         <button class="sim t-alerte" data-sim="alerte"><i class="dot"></i><span class="lbl">À traiter</span><span class="act">Il panique, poliment</span></button>
         <button class="sim t-news" data-sim="news"><i class="dot"></i><span class="lbl">Veille</span><span class="act">Il sort son monocle</span></button>
       </div>
+    </section>
+
+    <section>
+      <h2>Conversation</h2>
+      <p class="hint">Lambert vous répond avec Claude et se souvient de vous. La clé reste sur cet appareil et n'est envoyée qu'à l'API Anthropic ; l'usage est facturé sur votre compte de la Console Anthropic.</p>
+      <label class="field" for="apiKey">Clé d'API Anthropic
+        <input type="password" id="apiKey" spellcheck="false" autocomplete="off" placeholder="sk-ant-...">
+      </label>
+      <label class="field" for="model">Modèle
+        <select id="model">
+          <option value="claude-opus-5">Claude Opus 5 (recommandé)</option>
+          <option value="claude-sonnet-5">Claude Sonnet 5 (plus économique)</option>
+          <option value="claude-haiku-4-5">Claude Haiku 4.5 (le plus rapide)</option>
+        </select>
+      </label>
+      <label class="field" for="kleosUrl">Kleos : adresse du serveur MCP (facultatif)
+        <input type="text" id="kleosUrl" spellcheck="false" autocomplete="off" placeholder="https://.../mcp">
+      </label>
+      <label class="field" for="kleosToken">Kleos : jeton d'accès (facultatif)
+        <input type="password" id="kleosToken" spellcheck="false" autocomplete="off">
+      </label>
+      <div class="row"><button class="btn" id="saveBrain">Enregistrer</button><button class="btn ghost" id="forgetBtn">Effacer sa mémoire</button></div>
+      <p class="hint" id="brainHint"></p>
     </section>
 
     <section>
@@ -154,6 +186,8 @@
 <script src="punchlines.js"></script>
 <script src="persona.js"></script>
 <script src="voice.js"></script>
+<script src="vendor/anthropic-sdk.js"></script>
+<script src="brain.js"></script>
 <script src="ntfy.js"></script>
 <script src="app.js"></script>
 </body>
