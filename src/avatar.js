@@ -3,7 +3,7 @@
    mécanique graphite, avant-bras gauche dépareillé (pièce de rechange), plastron gravé de courbes de niveau,
    monocle de visée sur l'œil droit, prisme de géomètre sur le crâne.
    Expose window.createAvatar(canvas, stage) qui renvoie une petite API :
-   play(action), busy(), setMood(couleur|null), setTalking(bool), setSulk(bool), hit(x, y),
+   play(action), busy(), setMood(couleur|null), setTalking(bool), setVoiceLevel(0..1), setSulk(bool), hit(x, y),
    toScreen(x, y), rigY(), isWide(), onFrame(cb), resize().
    Actions : wave, jump, fret, lean, no, poke, bow, look, inspect, tap, stretch. */
 (function(){
@@ -294,7 +294,7 @@ window.createAvatar = function(canvas, stage){
 
   // Animation
   const clock = new THREE.Clock();
-  let act = null, talking = false, sulk = 0, sulkTarget = 0;
+  let act = null, talking = false, sulk = 0, sulkTarget = 0, vLevel = 0, vTarget = 0, vSeen = -1;
   const look = { x:0, y:0, tx:0, ty:0 };
   window.addEventListener("pointermove", e => { look.tx = (e.clientX / window.innerWidth - 0.5) * 2; look.ty = (e.clientY / window.innerHeight - 0.5) * 2; });
   let nextBlink = 2, blinkT = -1;
@@ -315,8 +315,11 @@ window.createAvatar = function(canvas, stage){
     look.x += (look.tx - look.x) * 0.06; look.y += (look.ty - look.y) * 0.06;
     P.headY += look.x*0.42; P.headX += look.y*0.16;
 
+    vLevel += (vTarget - vLevel) * 0.45;
     if(talking){
-      P.mouth = Math.max(P.mouth, 0.35 + 0.65*Math.abs(Math.sin(t*13.7)*Math.sin(t*5.3)));
+      // Bouche pilotée par le niveau réel de la voix quand il arrive, sinon par un babillage simulé
+      const live = t - vSeen < 0.3;
+      P.mouth = Math.max(P.mouth, live ? 0.08 + 0.95*vLevel : 0.35 + 0.65*Math.abs(Math.sin(t*13.7)*Math.sin(t*5.3)));
       P.headX += 0.035*Math.sin(t*6)*m; P.headZ += 0.03*Math.sin(t*2.1)*m;
       if(!act){ P.rElX += (-0.35 + 0.22*Math.sin(t*2.3))*m; P.rElZ += 0.18*Math.sin(t*1.7)*m; P.rCurl = 0.1; }
     }
@@ -398,6 +401,7 @@ window.createAvatar = function(canvas, stage){
     busy(){ return !!act; },
     setMood(color){ colTarget.set(color == null ? IDLE_COLOR : color).convertSRGBToLinear(); },
     setTalking(on){ talking = !!on; },
+    setVoiceLevel(v){ vTarget = v; if(v > 0.02) vSeen = clock.getElapsedTime(); },
     setSulk(on){ sulkTarget = on ? 1 : 0; },
     hit(clientX, clientY){
       const r = canvas.getBoundingClientRect();
