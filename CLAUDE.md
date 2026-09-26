@@ -70,6 +70,7 @@ Le Rust a été vérifié avec `cargo check` sous Linux et le frontend testé da
 - `npm run build` : produit `Manuvers.app` ; `npm run build:dmg` produit aussi un .dmg.
 - `npm run preview` : frontend seul dans le navigateur sur http://localhost:8765 (ajouter `?topic=...`).
 - `bash scripts/notify-test.sh <sujet> <info|success|alerte|news> "Titre" "Message"`.
+- Version en ligne : `.github/workflows/pages.yml` publie `src/` sur GitHub Pages à chaque push sur `main` (Settings > Pages > Source : « GitHub Actions »). Ouvrir `https://emmanuelndo.github.io/manuvers/?topic=...`. Sans Tauri : pas de choix d'écran, de mode flottant ni de maintien de l'écran allumé.
 
 ## Feuille de route
 
