@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Manuvers</title>
+<title>Lambert · Manuvers</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div class="app" id="app">
   <main class="stage" id="stage">
-    <canvas id="scene" aria-label="Avatar 3D animé"></canvas>
+    <canvas id="scene" aria-label="Lambert, droïde 3D animé. Cliquez sur lui pour l'interpeller."></canvas>
 
     <div class="drag" data-tauri-drag-region title="Déplacer Manuvers"></div>
 
     <header class="topbar">
       <div class="brand">
-        <span class="brand-name">Manuvers</span>
+        <span class="brand-name"><span id="brandName">Lambert</span> <span class="brand-id" id="brandId">LB-93</span></span>
         <span class="brand-sub" id="clock"></span>
       </div>
       <div class="top-actions">
@@ -34,6 +34,7 @@
       <div class="bubble-head"><span class="chip" id="bubbleType"></span><span class="bubble-time" id="bubbleTime"></span></div>
       <strong id="bubbleTitle"></strong>
       <p id="bubbleMsg"></p>
+      <p class="quip" id="bubbleQuip" hidden></p>
       <a id="bubbleLink" href="#" target="_blank" rel="noopener" hidden>Ouvrir le détail</a>
       <div class="dismiss">Cliquez pour fermer</div>
     </div>
@@ -49,10 +50,10 @@
     <section>
       <h2>Tester les réactions</h2>
       <div class="sim-grid">
-        <button class="sim t-info" data-sim="info"><i class="dot"></i><span class="lbl">Automatisation</span><span class="act">Il vous fait signe</span></button>
-        <button class="sim t-success" data-sim="success"><i class="dot"></i><span class="lbl">Bonne nouvelle</span><span class="act">Il saute de joie</span></button>
-        <button class="sim t-alerte" data-sim="alerte"><i class="dot"></i><span class="lbl">À traiter</span><span class="act">Il s'inquiète</span></button>
-        <button class="sim t-news" data-sim="news"><i class="dot"></i><span class="lbl">Veille</span><span class="act">Il se penche vers vous</span></button>
+        <button class="sim t-info" data-sim="info"><i class="dot"></i><span class="lbl">Automatisation</span><span class="act">Il vous salue</span></button>
+        <button class="sim t-success" data-sim="success"><i class="dot"></i><span class="lbl">Bonne nouvelle</span><span class="act">Il exulte, avec retenue</span></button>
+        <button class="sim t-alerte" data-sim="alerte"><i class="dot"></i><span class="lbl">À traiter</span><span class="act">Il panique, poliment</span></button>
+        <button class="sim t-news" data-sim="news"><i class="dot"></i><span class="lbl">Veille</span><span class="act">Il sort son monocle</span></button>
       </div>
     </section>
 
@@ -103,6 +104,20 @@
     </section>
 
     <section>
+      <h2>Lambert</h2>
+      <p class="hint">LB-93, droïde de protocole et de cartographie. Il commente, il a son caractère, et il sait dire non. Cliquez sur lui pour l'interpeller, sans trop insister.</p>
+      <div class="toggles">
+        <label for="optQuips"><input type="checkbox" id="optQuips"> Ses commentaires sur chaque notification</label>
+        <label for="optChatty"><input type="checkbox" id="optChatty"> Ses remarques spontanées quand rien ne se passe</label>
+        <label for="optQuiet"><input type="checkbox" id="optQuiet"> Il se tait la nuit (sauf priorité maximale)</label>
+      </div>
+      <div class="row hours">
+        <label class="field" for="quietFrom">Silence de <input type="time" id="quietFrom"></label>
+        <label class="field" for="quietTo">À <input type="time" id="quietTo"></label>
+      </div>
+    </section>
+
+    <section>
       <h2>Comportement</h2>
       <div class="toggles">
         <label for="optSound"><input type="checkbox" id="optSound"> Jouer un son à chaque notification</label>
@@ -132,6 +147,7 @@
 
 <script src="vendor/three.min.js"></script>
 <script src="avatar.js"></script>
+<script src="persona.js"></script>
 <script src="ntfy.js"></script>
 <script src="app.js"></script>
 </body>
