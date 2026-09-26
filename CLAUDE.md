@@ -12,6 +12,7 @@ src/                  Frontend statique, servi tel quel par Tauri (aucun bundler
   styles.css          Styles, thèmes clair/sombre, mode flottant transparent
   avatar.js           Lambert en 3D, procédural (Three.js) : window.createAvatar(canvas, stage)
   persona.js          Personnalité de Lambert : répliques, refus, bouderie, remarques (aucun DOM)
+  punchlines.js       Les cent punchlines de sa vie quotidienne, par activité (tablette, lecture, philosophie...)
   voice.js            Voix de Lambert : Piper local + filtre de droïde (WebAudio), repli sur la voix système
   voice-worker.js     Worker de synthèse : phonétisation espeak-ng (WASM) puis inférence ONNX, phrase par phrase
   voices/             Modèle de voix Piper (fr_FR-tom-medium, 44,1 kHz)
@@ -49,7 +50,9 @@ Droïde de protocole et de cartographie, première réplique de la Légion Manuv
 - Signature : il clôt ce qui n'est pas négociable par « C'est cartographié. » À réserver aux refus et aux affirmations fermes, pas à chaque phrase.
 - Il sait dire non : silence la nuit sauf priorité 5, bouderie après cinq clics en douze secondes, lassitude à la troisième alerte identique en deux heures, « allez vous coucher » après minuit.
 - Apparence : droïde longiligne et usé, au standard de L3-37 : plaques de céramique ivoire patinée (rayures, poussière) à inserts vert carte et demi-disques ocre, cuivre, acier, mécanique graphite, câbles apparents à la taille, au cou et le long des jambes. Tête en soucoupe à visière sombre, yeux en barres lumineuses (inclinées selon l'humeur), voyant de parole dans la visière, monocle de visée sur le bord avant droit du dôme, prisme de géomètre sur une tourelle. Avant-bras gauche bleu dépareillé (pièce de rechange assumée), plaque gravée de courbes de niveau avec rose des vents, petit écran d'état. Les lumières prennent la couleur de l'humeur.
-- Ajouter des répliques dans `LINES` de `persona.js` en respectant ces règles et l'absence de tiret cadratin.
+- Vie autonome, façon Tamagotchi : entre deux notifications, `app.js` lui choisit une activité (`avatar.setActivity`) : tablette 70 % du temps (il fait défiler, rit tout seul, vous montre parfois l'écran), lecture (pages qui tournent), méditation la main sous le menton, entretien (chiffon, burette), étirements, ou simple attente. Pendant les heures de silence : veille, tête baissée, yeux éteints. Une notification interrompt tout, il reprend ensuite.
+- Environ toutes les cinq minutes, une réplique liée à ce qu'il fait, tirée de `punchlines.js`.
+- Ajouter des répliques dans `punchlines.js` (vie quotidienne) ou dans `LINES` de `persona.js` (réactions), en respectant ces règles et l'absence de tiret cadratin.
 - Voix : Piper « tom » calculé sur l'appareil, un peu plus aigu et vif (`PITCH`, `LENGTH` dans `voice.js`), passé dans un filtre de droïde réglable (« Timbre de droïde » dans les réglages). `normalize()` adapte le texte à l'oral (LB-93, heures, pourcentages, sigles). La bouche suit le niveau sonore réel.
 
 ## Installation sur le Mac (première fois)
@@ -93,7 +96,8 @@ Le Rust a été vérifié avec `cargo check` sous Linux et le frontend testé da
 
 - **V1** : avatar procédural, 4 réactions, bulle, sons, voix, ntfy robuste, modes scène et flottant, démarrage auto, écran maintenu allumé.
 - **V1.1** : Lambert, droïde LB-93 : personnalité, commentaires, refus, bouderie, remarques spontanées, heures de silence, gestes expressifs, servomoteurs.
-- **V1.2 (actuelle)** : voix locale Piper avec filtre de droïde et bouche synchronisée sur le son.
+- **V1.2** : voix locale Piper avec filtre de droïde et bouche synchronisée sur le son ; design usé au standard L3-37.
+- **V1.3 (actuelle)** : vie autonome (tablette, lecture, méditation, entretien, étirements, veille), accessoires, cent punchlines.
 - **V2** : avatar personnel au format VRM (VRoid Studio) chargé avec `@pixiv/three-vrm` (à embarquer localement), animations Mixamo, humeurs par source (Kleos, veille, mails), clic sur la bulle pour ouvrir la fiche Kleos, résumé vocal du matin.
 - **V3** : conversation. Micro, transcription, appel à l'API Claude avec les connecteurs (Kleos, mails, Notion), réponse vocale avec synchronisation labiale.
 - Sécurisation : sujet réservé avec jeton sur ntfy.sh, ou serveur ntfy auto-hébergé (Docker sur un petit VPS).

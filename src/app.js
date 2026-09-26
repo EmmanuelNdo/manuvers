@@ -350,23 +350,40 @@ async function updateAwake(){
 }
 setInterval(updateAwake, 60000);
 
-/* ---------- Vie au repos : gestes et remarques spontanées ---------- */
-let lastActivity = Date.now(), nextBored = Date.now() + 45000, nextRemark = Date.now() + 8*60000;
+/* ---------- Vie autonome : entre deux notifications, Lambert vit sa vie ----------
+   Tablette 70 % du temps, puis lecture, méditation, entretien, étirements ; veille pendant les heures de silence.
+   De temps en temps, une réplique liée à ce qu'il fait (punchlines.js), et parfois il vous montre sa tablette. */
+const LIFE = [["tablet", 70], ["book", 8], ["muse", 7], ["polish", 4], ["oil", 4], ["stretch", 4], ["idle", 3]];
+const LIFE_TIME = { tablet:[70, 200], book:[60, 150], muse:[25, 45], polish:[25, 45], oil:[20, 35], stretch:[14, 15], idle:[15, 30] };
+let lastActivity = Date.now(), lifeUntil = 0, lifeResume = Date.now() + 5000, nextLine = Date.now() + 75000;
+function pickLife(){
+  let r = Math.random()*100;
+  for(const [name, weight] of LIFE){ if((r -= weight) < 0) return name; }
+  return "tablet";
+}
 setInterval(() => {
-  if(current || avatar.busy() || persona.sulking()) return;
   const now = Date.now();
-  if(S.chatty && S.quips && now > nextRemark && now - lastActivity > 5*60000 && !(S.quiet && inQuietHours())){
-    nextRemark = now + (12 + Math.random()*14)*60000;
-    const remark = persona.remark(new Date());
-    enqueue({ type:"persona", title:"", message:remark, date:new Date(), silent:true, action:"look" });
-    if(S.voice) speak([remark]);
+  if(current && !current.silent){ if(avatar.activity()) avatar.setActivity(null); lifeResume = now + 5000; return; }
+  if(!S.bored){ if(avatar.activity()) avatar.setActivity(null); return; }
+  if(persona.sulking() || now < lifeResume) return;
+  const quiet = S.quiet && inQuietHours();
+  if(quiet){ if(avatar.activity() !== "sleep") avatar.setActivity("sleep"); return; }
+  if(now > lifeUntil || avatar.activity() === "sleep"){
+    const a = pickLife();
+    avatar.setActivity(a === "idle" ? null : a);
+    const [lo, hi] = LIFE_TIME[a];
+    lifeUntil = now + (lo + Math.random()*(hi - lo))*1000;
     return;
   }
-  if(!S.bored || now < nextBored) return;
-  const r = Math.random();
-  gesture(r < 0.35 ? "look" : r < 0.6 ? "stretch" : r < 0.85 ? "inspect" : "tap");
-  nextBored = now + 30000 + Math.random()*30000;
-}, 2000);
+  if(S.chatty && S.quips && !current && now > nextLine && now - lastActivity > 90000){
+    nextLine = now + (4 + Math.random()*5)*60000;
+    const a = avatar.activity();
+    const line = persona.activityLine(a, new Date());
+    if(a === "tablet" && Math.random() < 0.45){ avatar.tabletShow(true); setTimeout(() => avatar.tabletShow(false), 6000); }
+    enqueue({ type:"persona", title:"", message:line, date:new Date(), silent:true, action:null });
+    if(S.voice) speak([line]);
+  }
+}, 1000);
 
 /* ---------- Clic sur le droïde ---------- */
 $("scene").addEventListener("pointerdown", e => {

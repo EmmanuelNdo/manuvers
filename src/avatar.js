@@ -7,7 +7,8 @@
    Expose window.createAvatar(canvas, stage) qui renvoie une petite API :
    play(action), busy(), setMood(couleur|null), setTalking(bool), setVoiceLevel(0..1), setSulk(bool), hit(x, y),
    toScreen(x, y), rigY(), isWide(), onFrame(cb), resize().
-   Actions : wave, jump, fret, lean, no, poke, bow, look, inspect, tap, stretch. */
+   Actions : wave, jump, fret, lean, no, poke, bow, look, inspect, tap, stretch.
+   Activités de fond (setActivity) : tablet, book, muse, polish, oil, stretch, sleep ; tabletShow(bool) retourne l'écran vers vous. */
 (function(){
 "use strict";
 
@@ -329,6 +330,93 @@ window.createAvatar = function(canvas, stage){
   }
   const armL = makeArm(-1, enamel), armR = makeArm(1, ivory);
 
+  // Accessoires de la vie quotidienne : tablette, livre, burette, chiffon
+  const props = {};
+  let seedP = 11; const rndP = () => (seedP = (seedP*16807) % 2147483647) / 2147483647;
+  // Fil d'actualité de la tablette : cartes, articles, graphiques, photos (dessiné une fois, défile en boucle)
+  function feedTexture(){
+    const c = document.createElement("canvas"); c.width = 256; c.height = 2048;
+    const g = c.getContext("2d");
+    g.fillStyle = "#0f141b"; g.fillRect(0, 0, 256, 2048);
+    const box = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+    const accents = ["#ff9a2e", "#3fb0ff", "#4fe0a0", "#b39cff", "#ffd166"];
+    let y = 10, n = 0;
+    while(y < 2030){
+      const type = n++ % 5, h = [150, 96, 124, 138, 84][type];
+      if(y + h > 2040) break;
+      g.fillStyle = "#1a212b"; box(8, y, 240, h, 12); g.fill();
+      g.fillStyle = accents[n % accents.length]; g.beginPath(); g.arc(26, y + 18, 8, 0, Math.PI*2); g.fill();
+      g.fillStyle = "#c9d2de"; g.fillRect(40, y + 12, 70 + rndP()*60, 6);
+      g.fillStyle = "#5d6878"; g.fillRect(40, y + 22, 40 + rndP()*40, 4);
+      const top = y + 36, ih = h - 46;
+      if(type === 0){
+        g.fillStyle = "#1d3326"; box(16, top, 224, ih, 8); g.fill();
+        g.strokeStyle = "#e39a52"; g.lineWidth = 1.5;
+        const cx = 60 + rndP()*140, cy = top + ih/2;
+        for(let k = 1; k <= 6; k++){ g.globalAlpha = 0.35 + k*0.1; g.beginPath(); g.ellipse(cx, cy, k*16, k*9, rndP(), 0, Math.PI*2); g.stroke(); }
+        g.globalAlpha = 1; g.fillStyle = "#ff5a3c"; g.beginPath(); g.arc(cx, cy, 4, 0, Math.PI*2); g.fill();
+      } else if(type === 1 || type === 4){
+        g.fillStyle = "#8793a4";
+        for(let l = 0; l < (type === 1 ? 5 : 3); l++) g.fillRect(16, top + l*12, 150 + rndP()*70, 5);
+      } else if(type === 2){
+        for(let b = 0; b < 9; b++){ const bh = 12 + rndP()*(ih - 16); g.fillStyle = accents[b % 3 === 0 ? 1 : 0]; g.fillRect(20 + b*24, top + ih - bh, 14, bh); }
+      } else {
+        const gr = g.createLinearGradient(0, top, 0, top + ih); gr.addColorStop(0, "#41688c"); gr.addColorStop(1, "#e7b07a");
+        g.fillStyle = gr; box(16, top, 224, ih, 8); g.fill();
+        g.fillStyle = "#2c3b33"; g.beginPath(); g.moveTo(16, top + ih); g.lineTo(80, top + ih*0.45); g.lineTo(130, top + ih*0.7); g.lineTo(190, top + ih*0.3); g.lineTo(240, top + ih); g.closePath(); g.fill();
+      }
+      y += h + 10;
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.encoding = THREE.sRGBEncoding; t.wrapT = THREE.RepeatWrapping; t.repeat.set(1, 0.19); t.anisotropy = 4;
+    return t;
+  }
+  (function tablet(){
+    const g = new THREE.Group(); torso.add(g);
+    slab(0.2, 0.28, 0.014, 0.022, graphite, g, 0, 0, 0);
+    const tex = feedTexture();
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.184, 0.262), new THREE.MeshBasicMaterial({ map:tex, color:0xd8dde4, toneMapped:false }));
+    screen.position.z = 0.0075; g.add(screen);
+    const back = new THREE.Group(); back.position.z = -0.008; back.rotation.y = Math.PI; g.add(back);
+    mesh(new THREE.TorusGeometry(0.03, 0.004, 8, 28), copper, back, 0, 0.03, 0);
+    const s = new THREE.Shape();
+    for(let i = 0; i < 8; i++){ const a = i*Math.PI/4 + Math.PI/2, r = i % 2 ? 0.007 : 0.024; if(i) s.lineTo(Math.cos(a)*r, Math.sin(a)*r); else s.moveTo(Math.cos(a)*r, Math.sin(a)*r); }
+    mesh(new THREE.ShapeGeometry(s), copper, back, 0, 0.03, 0.001);
+    const light = new THREE.PointLight(0x9fd0ff, 0, 0.9); light.position.set(0, 0, 0.18); g.add(light);
+    props.tablet = { g, tex, light, scroll:0.2, vel:0 };
+  })();
+  (function book(){
+    const g = new THREE.Group(); torso.add(g);
+    const cover = new THREE.MeshStandardMaterial({ color:new THREE.Color(0x6b2a22).convertSRGBToLinear(), map:grime, roughness:0.65 });
+    const paper = new THREE.MeshStandardMaterial({ color:new THREE.Color(0xf0e7d4).convertSRGBToLinear(), roughness:0.9, side:THREE.DoubleSide });
+    for(const side of [-1, 1]){
+      const half = new THREE.Group(); half.rotation.y = -side*0.3; g.add(half);
+      mesh(new THREE.BoxGeometry(0.13, 0.19, 0.006), cover, half, side*0.066, 0, -0.004);
+      mesh(new THREE.BoxGeometry(0.12, 0.18, 0.016), paper, half, side*0.062, 0, 0.008);
+      for(let l = 0; l < 7; l++) mesh(new THREE.BoxGeometry(0.08 + (l % 3)*0.01, 0.004, 0.001), graphite, half, side*0.062, 0.06 - l*0.018, 0.017).material = graphite;
+    }
+    mesh(new THREE.BoxGeometry(0.014, 0.19, 0.02), cover, g, 0, 0, -0.008);
+    const leaf = new THREE.Group(); leaf.position.z = 0.017; g.add(leaf);
+    mesh(new THREE.PlaneGeometry(0.115, 0.175), paper, leaf, 0.06, 0, 0);
+    props.book = { g, leaf };
+  })();
+  (function oilcan(){
+    const g = new THREE.Group(); armR.wr.add(g);
+    const brass = new THREE.MeshStandardMaterial({ color:new THREE.Color(0xc9a24a).convertSRGBToLinear(), roughness:0.35, metalness:0.85 });
+    mesh(new THREE.CylinderGeometry(0.03, 0.036, 0.07, 20), brass, g, 0, -0.12, 0.02);
+    const spout = mesh(new THREE.CylinderGeometry(0.003, 0.007, 0.1, 8), brass, g, 0, -0.1, 0.08);
+    spout.rotation.x = 1.1;
+    mesh(new THREE.TorusGeometry(0.02, 0.004, 6, 16, Math.PI), brass, g, 0, -0.1, -0.02).rotation.y = Math.PI/2;
+    props.oil = { g };
+  })();
+  (function cloth(){
+    const g = new THREE.Group(); armR.wr.add(g);
+    const fabric = new THREE.MeshStandardMaterial({ color:new THREE.Color(0xb5452e).convertSRGBToLinear(), roughness:0.95 });
+    const c = mesh(new THREE.BoxGeometry(0.05, 0.035, 0.08), fabric, g, 0, -0.1, 0.01);
+    c.rotation.z = 0.3;
+    props.cloth = { g };
+  })();
+
   // Ombre au sol
   const sc = document.createElement("canvas"); sc.width = sc.height = 128;
   const sg = sc.getContext("2d"); const grd = sg.createRadialGradient(64,64,0,64,64,64);
@@ -372,7 +460,7 @@ window.createAvatar = function(canvas, stage){
     torsoX:0.02, torsoY:0, torsoZ:0, headX:0, headY:0, headZ:0,
     lShX:-0.05, lShZ:-0.12, lElX:-0.55, lElZ:0, rShX:-0.05, rShZ:0.12, rElX:-0.55, rElZ:0,
     lCurl:0.35, rCurl:0.35, rIndex:0, lAnkle:0, rAnkle:0,
-    browL:0, browR:0, liftL:0, liftR:0, aperture:1, monocle:0, mouth:0
+    browL:0, browR:0, liftL:0, liftR:0, aperture:1, monocle:0, mouth:0, glow:1
   };
   const to = (P, k, v, w) => { P[k] += (v - P[k]) * w; };
   const akimbo = (P, side, w) => {
@@ -440,9 +528,98 @@ window.createAvatar = function(canvas, stage){
     }}
   };
 
+
+  /* Activités de fond : ce que Lambert fait de ses journées quand personne ne lui demande rien.
+     f(P, t, w, s, dt) : w est le poids de l'activité (0 à 1), s son état propre (minuteries). */
+  const hold = (P, w, lz, ex) => {   // deux mains qui tiennent un objet devant la poitrine
+    to(P,"lShX",-0.35,w); to(P,"lShZ",-0.04,w); to(P,"lElX",-ex,w); to(P,"lElZ",lz,w); to(P,"lCurl",0.6,w);
+    to(P,"rShX",-0.35,w); to(P,"rShZ",0.04,w); to(P,"rElX",-ex,w); to(P,"rElZ",-lz,w); to(P,"rCurl",0.6,w);
+  };
+  const place = (obj, a, b, k) => {  // interpole la position et l'orientation d'un accessoire entre deux poses
+    obj.position.set(a[0] + (b[0] - a[0])*k, a[1] + (b[1] - a[1])*k, a[2] + (b[2] - a[2])*k);
+    obj.rotation.set(a[3] + (b[3] - a[3])*k, a[4] + (b[4] - a[4])*k, a[5] + (b[5] - a[5])*k);
+  };
+  const ACTIVITIES = {
+    tablet:{ props:["tablet"], f(P, t, w, s, dt){
+      const pr = props.tablet;
+      s.sw = (s.sw || 0) + ((showTarget ? 1 : 0) - (s.sw || 0)) * Math.min(1, dt*3);
+      const sw = smooth(Math.min(1, Math.max(0, s.sw)));
+      // un glissement de doigt toutes les quelques secondes, puis l'inertie du défilement
+      if(!s.nextSwipe) s.nextSwipe = t + 1.5;
+      if(t > s.nextSwipe && sw < 0.1){ s.swipeT = t; s.nextSwipe = t + 1.8 + Math.random()*4.5; pr.vel += 0.05 + Math.random()*0.07; }
+      pr.vel *= Math.exp(-dt*2.6); pr.scroll += pr.vel*dt;
+      pr.tex.offset.y = 1 - pr.tex.repeat.y - (pr.scroll % 1);
+      pr.light.intensity = 0.55*w*(1 - sw);
+      hold(P, w, 0.72, 1.8);
+      const sp = s.swipeT ? (t - s.swipeT)/0.5 : 1;
+      if(sp < 1){ P.rElX += -0.22*Math.sin(sp*Math.PI)*w; P.rElZ += 0.1*Math.sin(sp*Math.PI)*w; }
+      to(P,"rIndex",1,w); to(P,"rCurl",1.1,w);
+      to(P,"headX",0.46,w); P.headY += 0.06*Math.sin(t*0.6)*w; to(P,"aperture",0.82,w);
+      P.rigRotY += -0.1*w; to(P,"headZ",0.06,w);
+      // rire silencieux de temps en temps
+      if(!s.nextLaugh) s.nextLaugh = t + 18 + Math.random()*30;
+      if(t > s.nextLaugh){ s.laughT = t; s.nextLaugh = t + 25 + Math.random()*45; }
+      const lp = s.laughT ? (t - s.laughT)/1.4 : 1;
+      if(lp < 1){ const k = Math.sin(lp*Math.PI)*w; P.headY += Math.sin(t*22)*0.05*k; P.torsoX += Math.abs(Math.sin(t*18))*0.03*k; to(P,"aperture",0.45,k); to(P,"mouth",0.7,k); }
+      // montrer l'écran : bras tendus, tablette retournée vers vous
+      to(P,"lShX",-0.6,w*sw); to(P,"rShX",-0.6,w*sw); to(P,"lElX",-1.75,w*sw); to(P,"rElX",-1.75,w*sw);
+      to(P,"lElZ",0.62,w*sw); to(P,"rElZ",-0.62,w*sw); to(P,"rIndex",0,w*sw);
+      to(P,"headX",-0.02,w*sw); to(P,"aperture",1.1,w*sw); to(P,"browL",-0.2,w*sw); to(P,"browR",-0.2,w*sw);
+      place(pr.g, [0, 0.53, 0.42, -1.91, 0, Math.PI], [0, 0.6, 0.5, -0.1, 0, 0], sw);
+    }},
+    book:{ props:["book"], f(P, t, w, s){
+      hold(P, w, 0.68, 1.75);
+      to(P,"headX",0.44,w); to(P,"aperture",0.8,w); P.headY += 0.12*Math.sin(t*0.9)*w;
+      P.headZ += 0.03*Math.sin(t*0.5)*w;
+      const pr = props.book;
+      if(!s.nextPage) s.nextPage = t + 5;
+      if(t > s.nextPage){ s.pageT = t; s.nextPage = t + 7 + Math.random()*7; }
+      const pp = s.pageT ? (t - s.pageT)/1.1 : 1;
+      pr.leaf.visible = pp < 1; pr.leaf.rotation.y = -Math.PI*smooth(Math.min(1, Math.max(0, pp)))*0.94 + 0.3;
+      if(pp < 1){ P.rElZ += -0.25*Math.sin(pp*Math.PI)*w; P.headY += -0.1*Math.sin(pp*Math.PI)*w; }
+      place(pr.g, [0, 0.52, 0.42, -1.95, 0, Math.PI], [0, 0.52, 0.42, -1.95, 0, Math.PI], 0);
+    }},
+    muse:{ props:[], f(P, t, w){
+      to(P,"rShX",-0.78,w); to(P,"rShZ",0.1,w); to(P,"rElX",-2.05,w); to(P,"rElZ",-0.58,w); to(P,"rCurl",0.9,w);
+      to(P,"lShX",-0.2,w); to(P,"lShZ",-0.1,w); to(P,"lElX",-1.3,w); to(P,"lElZ",1.0,w);
+      to(P,"headX",-0.24,w); to(P,"headY",0.4 + 0.08*Math.sin(t*0.3),w); to(P,"headZ",-0.1,w);
+      to(P,"aperture",0.78,w); to(P,"browL",-0.12,w); to(P,"liftR",0.01,w);
+      P.rigRotZ += 0.015*Math.sin(t*0.4)*w; P.rigRotY += 0.12*w;
+    }},
+    polish:{ props:["cloth"], f(P, t, w){
+      to(P,"lShX",-0.55,w); to(P,"lShZ",-0.1,w); to(P,"lElX",-1.55,w); to(P,"lElZ",0.55,w);
+      to(P,"rShX",-0.6,w); to(P,"rShZ",0.05,w); to(P,"rElX",-1.5,w); to(P,"rElZ",-0.85 + 0.2*Math.sin(t*7),w); to(P,"rCurl",0.8,w);
+      to(P,"headY",-0.42,w); to(P,"headX",0.3,w); to(P,"browR",0.12,w); to(P,"aperture",0.85,w);
+      P.torsoY += 0.04*Math.sin(t*7)*w;
+    }},
+    oil:{ props:["oil"], f(P, t, w){
+      // avant-bras gauche levé, la burette dans la main droite : une goutte au coude, une pression à la fois
+      const squeeze = Math.max(0, Math.sin(t*2.2));
+      to(P,"lShX",-0.6,w); to(P,"lShZ",-0.12,w); to(P,"lElX",-1.5,w); to(P,"lElZ",0.6,w); to(P,"lCurl",0.7,w);
+      to(P,"rShX",-0.5,w); to(P,"rShZ",0.02,w); to(P,"rElX",-1.3,w); to(P,"rElZ",-0.95 + 0.06*squeeze,w); to(P,"rCurl",0.9 + 0.3*squeeze,w);
+      to(P,"headX",0.34,w); to(P,"headY",-0.3,w); to(P,"headZ",0.08,w); to(P,"aperture",0.8,w); to(P,"browR",0.15,w);
+    }},
+    stretch:{ props:[], f(P, t, w, s){
+      const c = ((t - s.t0) % 14)/14, ph = k => smooth(Math.min(1, Math.max(0, k)));
+      const up = ph(c*6) * (1 - ph((c - 0.75)*6));
+      to(P,"lShZ",-2.85,w*up); to(P,"rShZ",2.85,w*up); to(P,"lElZ",-0.3,w*up); to(P,"rElZ",0.3,w*up); to(P,"lCurl",0,w); to(P,"rCurl",0,w);
+      to(P,"headX",-0.25,w*up); to(P,"aperture",0.4,w*up);
+      P.torsoZ += 0.22*Math.sin(Math.min(1, Math.max(0, (c - 0.2)/0.3))*Math.PI*2)*w*up;
+      P.torsoY += 0.35*Math.sin(Math.min(1, Math.max(0, (c - 0.5)/0.25))*Math.PI*2)*w;
+      P.headZ += 0.25*Math.sin(Math.min(1, Math.max(0, (c - 0.8)/0.2))*Math.PI*2)*w;
+      P.rigY += 0.02*up*w;
+    }},
+    sleep:{ props:[], f(P, t, w){
+      to(P,"headX",0.55,w); to(P,"headZ",0.1,w); to(P,"torsoX",0.14 + 0.02*Math.sin(t*0.8),w); to(P,"crouch",0.12,w);
+      to(P,"lShZ",-0.04,w); to(P,"rShZ",0.04,w); to(P,"lElX",-0.25,w); to(P,"rElX",-0.25,w); to(P,"lCurl",0.5,w); to(P,"rCurl",0.5,w);
+      to(P,"aperture",0.14,w); to(P,"glow",0.35 + 0.1*Math.sin(t*0.8),w);
+    }}
+  };
+
   // Animation
   const clock = new THREE.Clock();
   let act = null, talking = false, sulk = 0, sulkTarget = 0, vLevel = 0, vTarget = 0, vSeen = -1;
+  let cur = null, curW = 0, pending, ast = { t0:0 }, showTarget = false, lastT = 0;
   const look = { x:0, y:0, tx:0, ty:0 };
   window.addEventListener("pointermove", e => { look.tx = (e.clientX / window.innerWidth - 0.5) * 2; look.ty = (e.clientY / window.innerHeight - 0.5) * 2; });
   let nextBlink = 2, blinkT = -1;
@@ -471,6 +648,19 @@ window.createAvatar = function(canvas, stage){
       P.headX += 0.035*Math.sin(t*6)*m; P.headZ += 0.03*Math.sin(t*2.1)*m;
       if(!act){ P.rElX += (-0.35 + 0.22*Math.sin(t*2.3))*m; P.rElZ += 0.18*Math.sin(t*1.7)*m; P.rCurl = 0.1; }
     }
+
+    // Activité de fond, atténuée pendant une réaction ; les accessoires apparaissent avec elle
+    const dt = Math.min(0.05, Math.max(0, t - lastT)); lastT = t;
+    if(pending !== undefined && pending !== cur){
+      curW = Math.max(0, curW - dt*1.8);
+      if(curW === 0){ cur = pending; pending = undefined; ast = { t0:t }; showTarget = false; }
+    } else { pending = undefined; if(cur) curW = Math.min(1, curW + dt*0.9); }
+    const actDamp = act ? 1 - envelope(Math.min(1, (t - act.t0)/act.dur)) : 1;
+    const aw = smooth(curW) * actDamp;
+    if(cur && aw > 0.001) ACTIVITIES[cur].f(P, t, aw, ast, dt);
+    const shown = cur ? ACTIVITIES[cur].props : [];
+    for(const k in props){ const on = shown.includes(k) ? aw : 0; props[k].g.visible = on > 0.02; props[k].g.scale.setScalar(Math.max(0.001, smooth(Math.min(1, on*1.4)))); }
+    if(!shown.includes("tablet")) props.tablet.light.intensity = 0;
 
     sulk += (sulkTarget - sulk) * 0.05;
     if(sulk > 0.001){
@@ -516,7 +706,7 @@ window.createAvatar = function(canvas, stage){
     col.lerp(colTarget, 0.06);
     glowMat.emissive.copy(col); eyeMat.emissive.copy(col); mouthMat.emissive.copy(col); prismLight.color.copy(col);
     const pulse = act && act.name === "lean" ? 0.65 + 0.35*Math.sin(t*12) : 0.88 + 0.12*Math.sin(t*2.2);
-    glowMat.emissiveIntensity = 1.25 * pulse;
+    glowMat.emissiveIntensity = 1.25 * pulse * P.glow; eyeMat.emissiveIntensity = 1.15 * P.glow; prismLight.intensity = 0.5 * P.glow;
     prism.rotation.y = t*0.8;
 
     const hgt = rig.position.y;
@@ -550,6 +740,9 @@ window.createAvatar = function(canvas, stage){
     setTalking(on){ talking = !!on; },
     setVoiceLevel(v){ vTarget = v; if(v > 0.02) vSeen = clock.getElapsedTime(); },
     setSulk(on){ sulkTarget = on ? 1 : 0; },
+    setActivity(name){ pending = name && ACTIVITIES[name] ? name : null; },
+    activity(){ return pending !== undefined ? pending : cur; },
+    tabletShow(on){ showTarget = !!on; },
     hit(clientX, clientY){
       const r = canvas.getBoundingClientRect();
       ndc.set(((clientX - r.left)/r.width)*2 - 1, -((clientY - r.top)/r.height)*2 + 1);

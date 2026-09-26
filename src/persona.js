@@ -6,7 +6,8 @@
    absurdement précises, s'inquiète beaucoup, a de l'humour et sait dire non.
    Signature : il clôt ce qui n'est pas négociable par « C'est cartographié. »
    Ce module ne touche ni au DOM ni au son : il décide quoi dire et quel geste faire.
-   Expose window.createPersona() : greeting, react, digest, poke, remark, sulking. */
+   Les cent punchlines de sa vie quotidienne sont dans punchlines.js.
+   Expose window.createPersona() : greeting, react, digest, poke, remark, activityLine, sulking. */
 (function(){
 "use strict";
 
@@ -167,12 +168,21 @@ window.createPersona = function(){
     /* Petite remarque spontanée quand rien ne se passe */
     remark(date){
       const d = date || new Date(), h = d.getHours() + d.getMinutes()/60, day = d.getDay();
-      const pool = LINES.remark.slice();
+      const PL = window.PUNCHLINES || {};
+      const pool = LINES.remark.concat(PL.observations || [], PL.geomatique || []);
       if(h >= 7 && h < 10) pool.push(...LINES.morning, ...LINES.morning);
       if(h >= 12 && h < 13.75) pool.push(...LINES.lunch, ...LINES.lunch);
       if(h >= 19) pool.push(...LINES.evening, ...LINES.evening);
       if(day === 5 && h >= 14) pool.push(...LINES.friday, ...LINES.friday);
       return pick("remark", pool);
+    },
+
+    /* Une réplique liée à ce qu'il est en train de faire (punchlines.js), sinon une remarque générale */
+    activityLine(activity, date){
+      const PL = window.PUNCHLINES || {};
+      const key = { tablet:"tablette", book:"lecture", muse:"philosophie", polish:"entretien", oil:"entretien", stretch:"etirements", sleep:"veille" }[activity];
+      if(key && PL[key] && PL[key].length) return pick("pl-" + key, PL[key]);
+      return this.remark(date);
     }
   };
 };
