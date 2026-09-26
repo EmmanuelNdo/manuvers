@@ -16,6 +16,7 @@ const DEFAULTS = {
   mode:"scene", monitor:"", clickThrough:false,
   sound:true, voice:false, bored:true, autostart:true,
   quips:true, chatty:true, quiet:true, quietFrom:"21:30", quietTo:"07:30", met:false, timbre:0.6,
+  apiKey:"", model:"claude-opus-5", kleosUrl:"", kleosToken:"",
   keepAwake:true, awakeFrom:"08:30", awakeTo:"19:00", weekdays:true
 };
 const S = (() => {
@@ -177,7 +178,7 @@ function renderRecent(){
     ol.appendChild(li);
   }
 }
-function handle(ev){ ev.date = ev.date || new Date(); logEvent(ev); enqueue(ev); }
+function handle(ev){ ev.date = ev.date || new Date(); logEvent(ev); if(!ev.silent && !ev.test) brain.noteEvent(ev); enqueue(ev); }
 
 /* ---------- Sons (synthétisés) et voix ---------- */
 let audio = null;
@@ -363,7 +364,8 @@ function pickLife(){
 }
 setInterval(() => {
   const now = Date.now();
-  if(current && !current.silent){ if(avatar.activity()) avatar.setActivity(null); lifeResume = now + 5000; return; }
+  if(listening || convoBusy){ lifeResume = now + 8000; return; }
+  if(current && !current.silent){ if(!current.convo && avatar.activity()) avatar.setActivity(null); lifeResume = now + 5000; return; }
   if(!S.bored){ if(avatar.activity()) avatar.setActivity(null); return; }
   if(persona.sulking() || now < lifeResume) return;
   const quiet = S.quiet && inQuietHours();
@@ -397,6 +399,86 @@ $("scene").addEventListener("pointerdown", e => {
   if(S.voice && !(S.quiet && inQuietHours())) speak([r.quip]);
 });
 
+/* ---------- Conversation (V3) : on parle à Lambert, il répond avec Claude et s'en souvient ----------
+   Maintenir Espace (ou le bouton Parler) pour parler, touche T pour écrire. Reconnaissance vocale du navigateur
+   quand elle existe, sinon saisie au clavier. */
+const brain = window.createBrain({ getSettings:() => S });
+const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false, convoBusy = false, convoAt = 0;
+function talkOpen(focus){ $("talk").hidden = false; if(focus) setTimeout(() => $("talkInput").focus(), 30); }
+function talkClose(){ if(!listening && !convoBusy) $("talk").hidden = true; }
+function talkState(t){ $("talkState").textContent = t; }
+function startListening(){
+  ensureAudio(); voice.cancel(); talkOpen(!Rec);
+  if(!Rec){ talkState("Écrivez"); return; }
+  if(listening) return;
+  try{ rec = new Rec(); }catch(e){ talkOpen(true); talkState("Écrivez"); return; }
+  rec.lang = "fr-FR"; rec.interimResults = true; rec.continuous = false;
+  rec.onresult = e => { let t = ""; for(const r of e.results) t += r[0].transcript; $("talkInput").value = t; };
+  rec.onerror = e => talkState(e.error === "not-allowed" || e.error === "service-not-allowed" ? "Micro refusé : écrivez" : "Je n'ai rien entendu");
+  rec.onend = () => {
+    listening = false; $("micBtn").classList.remove("on");
+    const t = $("talkInput").value.trim();
+    if(t) sendToLambert(t); else if(!convoBusy) talkState("À vous");
+  };
+  listening = true; $("micBtn").classList.add("on"); $("talkInput").value = ""; talkState("J'écoute…");
+  avatar.setActivity(null);
+  try{ rec.start(); }catch(e){ listening = false; $("micBtn").classList.remove("on"); talkState("Écrivez"); talkOpen(true); }
+}
+function stopListening(){ if(rec && listening) try{ rec.stop(); }catch(e){} }
+function convoBubble(text){
+  $("bubbleType").className = "chip t-persona"; $("bubbleType").textContent = persona.NAME;
+  $("bubbleTime").textContent = fmtTime(new Date());
+  $("bubbleTitle").textContent = ""; $("bubbleTitle").hidden = true;
+  $("bubbleQuip").hidden = true; $("bubbleLink").hidden = true;
+  $("bubbleMsg").textContent = text;
+  if(bubble.hidden){ bubble.hidden = false; bubble.classList.remove("enter"); void bubble.offsetWidth; bubble.classList.add("enter"); }
+  clearTimeout(hideTimer); clearInterval(typeTimer);
+}
+async function sendToLambert(text){
+  text = String(text || "").trim(); if(!text) return;
+  brain.cancel(); voice.cancel(); ensureAudio();
+  convoBusy = true; lastActivity = Date.now();
+  $("talkInput").value = ""; talkOpen(false); talkState("Vous : " + (text.length > 60 ? text.slice(0, 57) + "…" : text));
+  if(S.apiKey && Date.now() - convoAt > 10*60000) brain.startConversation();
+  convoAt = Date.now();
+  current = { type:"persona", convo:true, date:new Date() };
+  avatar.setMood(null); avatar.setActivity("muse");
+  convoBubble("…");
+  let started = false;
+  const finish = (reply) => {
+    convoBusy = false; avatar.setActivity(null);
+    $("bubbleMsg").textContent = reply;
+    talkState("À vous");
+    if(S.voice && !(S.quiet && inQuietHours())) speak([reply]); else talkFor(reply);
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => { if(current && current.convo){ closeBubble(); talkClose(); } }, Math.max(12000, reply.length*70 + 6000));
+  };
+  try{
+    await brain.ask(text, {
+      onText:(d, full) => { if(!started){ started = true; avatar.setActivity(null); avatar.setTalking(true); } $("bubbleMsg").textContent = full; },
+      onTool:(name, server) => { if(!started) $("bubbleMsg").textContent = server === "kleos" ? "Je consulte Kleos…" : name === "se_souvenir" ? "Je note…" : "Un instant…"; },
+      onDone:reply => finish(reply || "…")
+    });
+  }catch(err){
+    if(err && err.name === "AbortError"){ convoBusy = false; return; }
+    console.warn("Conversation :", err);
+    finish(err && err.code === "nokey"
+      ? "Il me manque une clé d'accès à Claude. Réglages, section Conversation. C'est cartographié."
+      : err && err.status === 401 ? "Ma clé d'accès est refusée. Vérifiez-la dans les réglages, je vous prie."
+      : "Liaison perdue avec mon cerveau" + (err && err.status ? " (erreur " + err.status + ")" : "") + ". Je réessaierai.");
+  }
+}
+$("talk").addEventListener("submit", e => { e.preventDefault(); sendToLambert($("talkInput").value); });
+$("micBtn").addEventListener("click", () => { if(listening) stopListening(); else startListening(); });
+$("talkBtn").addEventListener("click", () => { if(Rec) startListening(); else { talkOpen(true); talkState("Écrivez"); } });
+window.addEventListener("keydown", e => {
+  if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)){ if(e.key === "Escape" && document.activeElement.id === "talkInput"){ document.activeElement.blur(); talkClose(); } return; }
+  if(e.code === "Space" && !e.repeat && Rec){ e.preventDefault(); startListening(); }
+  if(e.key === "t" || e.key === "T"){ e.preventDefault(); talkOpen(true); talkState("À vous"); }
+});
+window.addEventListener("keyup", e => { if(e.code === "Space" && listening) stopListening(); });
+
 /* ---------- Tiroir de réglages ---------- */
 const drawer = $("drawer");
 function openDrawer(open){
@@ -417,6 +499,11 @@ function syncForm(){
   $("mode").value = S.mode; $("awakeFrom").value = S.awakeFrom; $("awakeTo").value = S.awakeTo;
   $("quietFrom").value = S.quietFrom; $("quietTo").value = S.quietTo;
   $("timbre").value = Math.round(S.timbre*100);
+  $("apiKey").value = S.apiKey; $("model").value = S.model; $("kleosUrl").value = S.kleosUrl; $("kleosToken").value = S.kleosToken;
+  const m = brain.memory();
+  $("brainHint").textContent = (S.apiKey ? "Clé enregistrée sur cet appareil. " : "Aucune clé : Lambert ne peut pas encore converser. ")
+    + m.facts.length + " souvenir" + (m.facts.length > 1 ? "s" : "") + ", " + m.turns.length + " message" + (m.turns.length > 1 ? "s" : "") + " dans le fil. "
+    + (Rec ? "Reconnaissance vocale disponible." : "Pas de reconnaissance vocale ici : écrivez-lui (touche T).");
   for(const [id, k] of Object.entries(CHECKS)) $(id).checked = !!S[k];
 }
 for(const [id, k] of Object.entries(CHECKS)){
@@ -431,6 +518,14 @@ for(const [id, k] of Object.entries(CHECKS)){
 }
 ["awakeFrom","awakeTo"].forEach(id => $(id).addEventListener("change", () => { S[id] = $(id).value; save(); awakeOn = null; updateAwake(); }));
 ["quietFrom","quietTo"].forEach(id => $(id).addEventListener("change", () => { S[id] = $(id).value; save(); }));
+$("saveBrain").addEventListener("click", () => {
+  S.apiKey = $("apiKey").value.trim(); S.model = $("model").value; S.kleosUrl = $("kleosUrl").value.trim(); S.kleosToken = $("kleosToken").value.trim();
+  save(); syncForm();
+});
+$("forgetBtn").addEventListener("click", () => {
+  if(!confirm("Effacer le fil de conversation et tous les souvenirs de Lambert ? Les statistiques de vie commune sont conservées.")) return;
+  brain.forget(); syncForm();
+});
 $("timbre").addEventListener("input", () => { S.timbre = $("timbre").value/100; voice.setTimbre(S.timbre); });
 $("timbre").addEventListener("change", () => { save(); if(S.voice){ ensureAudio(); speak(["Voici mon timbre. " + persona.SEAL]); } });
 voice.setTimbre(S.timbre);
