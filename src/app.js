@@ -15,6 +15,7 @@ const DEFAULTS = {
   server:"https://ntfy.sh", topic:"", token:"", lastId:"",
   mode:"scene", monitor:"", clickThrough:false,
   sound:true, voice:false, bored:true, autostart:true,
+  quips:true, chatty:true, quiet:true, quietFrom:"21:30", quietTo:"07:30", met:false,
   keepAwake:true, awakeFrom:"08:30", awakeTo:"19:00", weekdays:true
 };
 const S = (() => {
@@ -29,15 +30,20 @@ function save(){ try{ localStorage.setItem("manuvers:settings", JSON.stringify(S
 save();
 
 const TYPES = {
+  persona: { label:"Lambert",        color:null,     action:null,    rank:0 },
   info:    { label:"Automatisation", color:0x3fb0ff, action:"wave",  rank:1 },
   news:    { label:"Veille",         color:0xa98bff, action:"lean",  rank:2 },
   success: { label:"Bonne nouvelle", color:0x4fe0a0, action:"jump",  rank:3 },
-  alerte:  { label:"À traiter",      color:0xffb23e, action:"shake", rank:4 }
+  alerte:  { label:"À traiter",      color:0xffb23e, action:"fret",  rank:4 }
 };
 
-/* ---------- Avatar ---------- */
+/* ---------- Avatar et personnalité ---------- */
 const stage = $("stage");
 const avatar = window.createAvatar($("scene"), stage);
+const persona = window.createPersona();
+$("brandName").textContent = persona.NAME;
+$("brandId").textContent = persona.ID;
+function gesture(name){ if(!name) return; avatar.play(name); servo(name); }
 
 /* ---------- Horloge ---------- */
 function tickClock(){
@@ -66,7 +72,7 @@ function placeBubble(){
   if(bubble.hidden) return;
   const W = stage.clientWidth, H = stage.clientHeight, bw = bubble.offsetWidth, bh = bubble.offsetHeight;
   const y = avatar.rigY();
-  const side = avatar.toScreen(0.95, 2.05 + y*0.5);
+  const side = avatar.toScreen(0.62, 2.35 + y*0.5);
   const enter = bubble.classList.contains("enter") ? " enter" : "";
   if(avatar.isWide() && side.x + bw + 16 <= W){
     bubble.className = "bubble side" + enter;
@@ -74,7 +80,7 @@ function placeBubble(){
     bubble.style.transform = `translate(${side.x}px, ${top}px)`;
     bubble.style.setProperty("--tail", Math.max(16, Math.min(bh - 28, side.y - top - 8)) + "px");
   } else {
-    const headTop = avatar.toScreen(0, 2.62 + y);
+    const headTop = avatar.toScreen(0, 2.95 + y);
     bubble.className = "bubble top" + enter;
     const left = Math.min(Math.max(headTop.x - bw/2, 12), W - bw - 12);
     const top = Math.max(headTop.y - bh - 18, 12);
@@ -100,12 +106,27 @@ function showNext(){
   const T = TYPES[ev.type];
   lastActivity = Date.now();
   avatar.setMood(T.color);
-  avatar.play(T.action);
-  if(!ev.silent){ chime(ev.type); speak(ev); }
+  // Lambert décide du geste, du commentaire, et s'il accepte de parler
+  let r = { quip:ev.quip || "", outro:"", action:ev.action !== undefined ? ev.action : T.action, voice:true, sound:true };
+  if(!ev.silent && ev.type !== "persona"){
+    r = persona.react(ev, { quiet:S.quiet && inQuietHours(), date:new Date() });
+    if(ev.quip) r.quip = ev.quip;
+    if(!S.quips){ r.quip = ""; r.outro = ""; r.action = T.action; }
+  }
+  if(!ev.silent) avatar.setSulk(false);
+  gesture(r.action);
+  const quip = [r.quip, r.outro].filter(Boolean).join(" ");
+  if(!ev.silent){
+    if(r.sound) chime(ev.type);
+    if(r.voice && S.voice) speak([r.quip, ev.title, ev.message, r.outro]);
+    else talkFor(quip + " " + (ev.message || ""));
+  } else talkFor(ev.message || "");
 
   $("bubbleType").className = "chip t-" + ev.type; $("bubbleType").textContent = T.label;
   $("bubbleTime").textContent = ev.late ? "reçue à " + fmtTime(ev.date) : fmtTime(ev.date);
-  $("bubbleTitle").textContent = ev.title || T.label;
+  $("bubbleTitle").textContent = ev.title || (ev.type === "persona" ? "" : T.label);
+  $("bubbleTitle").hidden = !$("bubbleTitle").textContent;
+  $("bubbleQuip").textContent = quip; $("bubbleQuip").hidden = !quip;
   const link = $("bubbleLink");
   if(ev.click){ link.href = ev.click; link.hidden = false; } else link.hidden = true;
   const msg = $("bubbleMsg"); msg.textContent = "";
@@ -116,11 +137,11 @@ function showNext(){
   if(reduce) msg.textContent = text;
   else typeTimer = setInterval(() => { i += 2; msg.textContent = text.slice(0, i); if(i >= text.length) clearInterval(typeTimer); }, 22);
   clearTimeout(hideTimer);
-  hideTimer = setTimeout(closeBubble, Math.max(9000, text.length*55 + 7000));
+  hideTimer = setTimeout(closeBubble, ev.type === "persona" ? Math.max(6000, text.length*60 + 3000) : Math.max(9000, (text.length + quip.length)*55 + 7000));
 }
 function closeBubble(){
   clearTimeout(hideTimer); clearInterval(typeTimer);
-  bubble.hidden = true; current = null;
+  bubble.hidden = true; current = null; avatar.setTalking(false);
   if(queue.length) setTimeout(showNext, 700);
   else {
     avatar.setMood(null);
@@ -185,15 +206,37 @@ function chime(type){
   }[type] || [];
   seq.forEach(([f,s,d]) => tone(f, s, d, type === "alerte" ? "square" : "triangle", type === "alerte" ? 0.05 : 0.16));
 }
-function speak(ev){
-  if(!S.voice || !window.speechSynthesis) return;
+/* Petit bruit de servomoteur à chaque geste : c'est un droïde, il s'entend bouger. */
+function servo(name){
+  if(!S.sound || !audio || audio.state !== "running" || (S.quiet && inQuietHours())) return;
+  const t0 = audio.currentTime, dur = { poke:0.18, no:0.35, jump:0.3 }[name] || 0.28;
+  const o = audio.createOscillator(), f = audio.createBiquadFilter(), g = audio.createGain();
+  o.type = "sawtooth"; o.frequency.setValueAtTime(150, t0); o.frequency.linearRampToValueAtTime(230 + Math.random()*60, t0 + dur*0.6); o.frequency.linearRampToValueAtTime(170, t0 + dur);
+  f.type = "bandpass"; f.frequency.value = 1100; f.Q.value = 2.5;
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(0.035, t0 + 0.03); g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(f).connect(g).connect(audio.destination); o.start(t0); o.stop(t0 + dur + 0.05);
+}
+/* Voix : le phrasé de Lambert est un peu plus aigu et vif que la voix système par défaut. */
+let talkTimer = null;
+function talkFor(text){
+  clearTimeout(talkTimer);
+  if(!text || !text.trim()) return;
+  avatar.setTalking(true);
+  talkTimer = setTimeout(() => avatar.setTalking(false), Math.min(7000, 900 + text.length*38));
+}
+function speak(parts){
+  const text = parts.filter(Boolean).map(s => s.trim().replace(/[.!?…]?$/, m => m || ".")).join(" ");
+  if(!S.voice || !window.speechSynthesis || !text) return talkFor(text);
   try{
-    const u = new SpeechSynthesisUtterance((ev.title ? ev.title + ". " : "") + (ev.message || ""));
-    u.lang = "fr-FR"; u.rate = 1.03;
-    const v = speechSynthesis.getVoices().find(v => v.lang && v.lang.toLowerCase().startsWith("fr"));
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "fr-FR"; u.rate = 1.06; u.pitch = 1.15;
+    const voices = speechSynthesis.getVoices().filter(v => v.lang && v.lang.toLowerCase().startsWith("fr"));
+    const v = voices.find(v => /thomas/i.test(v.name)) || voices.find(v => /fr-fr/i.test(v.lang)) || voices[0];
     if(v) u.voice = v;
+    u.onstart = () => { clearTimeout(talkTimer); avatar.setTalking(true); };
+    u.onend = u.onerror = () => avatar.setTalking(false);
     speechSynthesis.cancel(); speechSynthesis.speak(u);
-  }catch(e){}
+  }catch(e){ talkFor(text); }
 }
 
 /* ---------- ntfy ---------- */
@@ -207,7 +250,7 @@ function classify(tags, priority){
 }
 let missed = [], missedTimer = null;
 function onNtfyMessage(m){
-  const ev = { type:classify(m.tags, m.priority), title:m.title || "", message:m.message || "", click:m.click || "", date:m.time ? new Date(m.time*1000) : new Date() };
+  const ev = { type:classify(m.tags, m.priority), title:m.title || "", message:m.message || "", click:m.click || "", priority:m.priority || 3, date:m.time ? new Date(m.time*1000) : new Date() };
   if(Date.now() - ev.date.getTime() > 120000){
     // Message arrivé pendant une absence (Mac en veille, application fermée) : on les regroupe.
     ev.late = true; missed.push(ev);
@@ -223,7 +266,7 @@ function flushMissed(){
   list.forEach(ev => { ev.silentLog = true; logEvent(ev); });
   const top = list.reduce((a, b) => TYPES[b.type].rank >= TYPES[a.type].rank ? b : a);
   const titles = list.slice(-3).reverse().map(e => e.title || TYPES[e.type].label).join(" · ");
-  enqueue({ type:top.type, date:new Date(), title:"Pendant votre absence", message:list.length + " notifications reçues. Les dernières : " + titles + ". Le détail est dans le journal." });
+  enqueue({ type:top.type, date:new Date(), title:"Pendant votre absence", message:list.length + " notifications reçues. Les dernières : " + titles + ". Le détail est dans le journal.", quip:persona.digest() });
 }
 const client = new window.NtfyClient({
   onMessage:onNtfyMessage,
@@ -292,6 +335,12 @@ function inAwakeHours(){
   const a = toMin(S.awakeFrom), b = toMin(S.awakeTo);
   return a <= b ? hm >= a && hm < b : hm >= a || hm < b;
 }
+function inQuietHours(){
+  const d = new Date(), hm = d.getHours()*60 + d.getMinutes();
+  const toMin = s => { const [h, m] = (s || "0:0").split(":").map(Number); return h*60 + m; };
+  const a = toMin(S.quietFrom), b = toMin(S.quietTo);
+  return a <= b ? hm >= a && hm < b : hm >= a || hm < b;
+}
 async function updateAwake(){
   if(!invoke) return;
   const want = S.keepAwake && inAwakeHours();
@@ -300,13 +349,33 @@ async function updateAwake(){
 }
 setInterval(updateAwake, 60000);
 
-/* ---------- Ennui ---------- */
-let lastActivity = Date.now(), nextBored = Date.now() + 45000;
+/* ---------- Vie au repos : gestes et remarques spontanées ---------- */
+let lastActivity = Date.now(), nextBored = Date.now() + 45000, nextRemark = Date.now() + 8*60000;
 setInterval(() => {
-  if(!S.bored || current || avatar.busy() || Date.now() < nextBored) return;
-  avatar.play(Math.random() < 0.5 ? "stretch" : "look");
-  nextBored = Date.now() + 30000 + Math.random()*30000;
+  if(current || avatar.busy() || persona.sulking()) return;
+  const now = Date.now();
+  if(S.chatty && S.quips && now > nextRemark && now - lastActivity > 5*60000 && !(S.quiet && inQuietHours())){
+    nextRemark = now + (12 + Math.random()*14)*60000;
+    enqueue({ type:"persona", title:"", message:persona.remark(new Date()), date:new Date(), silent:true, action:"look" });
+    return;
+  }
+  if(!S.bored || now < nextBored) return;
+  const r = Math.random();
+  gesture(r < 0.35 ? "look" : r < 0.6 ? "stretch" : r < 0.85 ? "inspect" : "tap");
+  nextBored = now + 30000 + Math.random()*30000;
 }, 2000);
+
+/* ---------- Clic sur le droïde ---------- */
+$("scene").addEventListener("pointerdown", e => {
+  if(!avatar.hit(e.clientX, e.clientY)) return;
+  if(current && !current.silent) return;
+  lastActivity = Date.now();
+  const r = persona.poke(new Date());
+  if(r.sulk){ avatar.setSulk(true); setTimeout(() => avatar.setSulk(false), r.sulk); }
+  if(current) { clearTimeout(hideTimer); bubble.hidden = true; current = null; }
+  enqueue({ type:"persona", title:"", message:r.quip, date:new Date(), silent:true, action:r.action });
+  if(S.voice && !(S.quiet && inQuietHours())) speak([r.quip]);
+});
 
 /* ---------- Tiroir de réglages ---------- */
 const drawer = $("drawer");
@@ -322,10 +391,11 @@ window.addEventListener("keydown", e => {
   if(e.key === "Escape") openDrawer(false);
 });
 
-const CHECKS = { optSound:"sound", optVoice:"voice", optBored:"bored", optAutostart:"autostart", optAwake:"keepAwake", optWeekdays:"weekdays", optClick:"clickThrough" };
+const CHECKS = { optSound:"sound", optVoice:"voice", optBored:"bored", optAutostart:"autostart", optAwake:"keepAwake", optWeekdays:"weekdays", optClick:"clickThrough", optQuips:"quips", optChatty:"chatty", optQuiet:"quiet" };
 function syncForm(){
   $("server").value = S.server; $("topic").value = S.topic; $("token").value = S.token;
   $("mode").value = S.mode; $("awakeFrom").value = S.awakeFrom; $("awakeTo").value = S.awakeTo;
+  $("quietFrom").value = S.quietFrom; $("quietTo").value = S.quietTo;
   for(const [id, k] of Object.entries(CHECKS)) $(id).checked = !!S[k];
 }
 for(const [id, k] of Object.entries(CHECKS)){
@@ -338,6 +408,7 @@ for(const [id, k] of Object.entries(CHECKS)){
   });
 }
 ["awakeFrom","awakeTo"].forEach(id => $(id).addEventListener("change", () => { S[id] = $(id).value; save(); awakeOn = null; updateAwake(); }));
+["quietFrom","quietTo"].forEach(id => $(id).addEventListener("change", () => { S[id] = $(id).value; save(); }));
 $("mode").addEventListener("change", () => { S.mode = $("mode").value; save(); applyScreen(); });
 $("monitor").addEventListener("change", () => { S.monitor = $("monitor").value; save(); if(S.mode === "scene") applyScreen(); });
 $("connectBtn").addEventListener("click", () => {
@@ -362,7 +433,7 @@ const SAMPLES = {
   alerte:  { title:"Relances en retard", message:"2 propositions sont sans réponse depuis plus de 10 jours. Un brouillon de relance est prêt." },
   news:    { title:"Veille GeoAI de 13h", message:"3 articles retenus aujourd'hui, dont une nouveauté sur la segmentation d'images satellite." }
 };
-function simulate(type){ handle({ type, title:SAMPLES[type].title + " (test)", message:SAMPLES[type].message }); }
+function simulate(type){ handle({ type, title:SAMPLES[type].title + " (test)", message:SAMPLES[type].message, test:true }); }
 document.querySelectorAll("[data-sim]").forEach(b => b.addEventListener("click", () => { ensureAudio(); simulate(b.dataset.sim); }));
 
 /* ---------- Menu de la barre des menus ---------- */
@@ -388,6 +459,11 @@ if(listen){
   updateAwake();
   ensureAudio();
   connect();
-  setTimeout(() => { if(!current && !queue.length) handle({ type:"info", title:"Bonjour Manu", message:"Je suis à mon poste. Dès qu'une automatisation se déclenche, je vous préviens ici.", silent:true }); }, 800);
+  setTimeout(() => {
+    if(current || queue.length) return;
+    const g = persona.greeting(new Date(), !S.met);
+    S.met = true; save();
+    handle({ type:"persona", title:g.title, message:g.message, silent:true, action:"bow" });
+  }, 900);
 })();
 })();

@@ -1,6 +1,6 @@
 # Manuvers
 
-Avatar 3D compagnon qui vit sur un écran dédié et réagit en temps réel aux automatisations de Manu (tâches planifiées Claude, Kleos, sessions Claude Code). Nom : clin d'œil au Bobiverse (« Je suis Légion ») : se multiplier.
+Avatar 3D compagnon, le droïde LB-93 dit Lambert, qui vit sur un écran dédié et réagit en temps réel aux automatisations de Manu (tâches planifiées Claude, Kleos, sessions Claude Code). Nom : clin d'œil au Bobiverse (« Je suis Légion ») : se multiplier.
 
 Utilisateur : Manu (Emmanuel Ndofunsu), MacBook Pro Apple Silicon, écran externe dédié à l'avatar.
 
@@ -10,7 +10,8 @@ Utilisateur : Manu (Emmanuel Ndofunsu), MacBook Pro Apple Silicon, écran extern
 src/                  Frontend statique, servi tel quel par Tauri (aucun bundler)
   index.html          Structure : scène, bulle, dernières notifications, tiroir de réglages
   styles.css          Styles, thèmes clair/sombre, mode flottant transparent
-  avatar.js           Avatar Three.js procédural : window.createAvatar(canvas, stage)
+  avatar.js           Lambert en 3D, procédural (Three.js) : window.createAvatar(canvas, stage)
+  persona.js          Personnalité de Lambert : répliques, refus, bouderie, remarques (aucun DOM)
   ntfy.js             Client ntfy robuste : flux JSON, jeton, rattrapage "since", reconnexion
   app.js              Réglages, file de notifications, sons, voix, écrans, veille, menu
   vendor/three.min.js Three.js r128 (UMD) embarqué : pas de CDN
@@ -23,7 +24,7 @@ scripts/notify-test.sh  Envoi d'une notification de test
 docs/INTEGRATIONS.md    Brancher tâches planifiées, hooks Claude Code, Kleos
 ```
 
-Flux : une automatisation publie un message sur un sujet ntfy → `ntfy.js` le reçoit → `app.js` le classe (info, success, alerte, news selon les tags et la priorité) → l'avatar joue l'animation correspondante (wave, jump, shake, lean), un son synthétisé retentit, une bulle affiche titre et message, la voix le lit si activée.
+Flux : une automatisation publie un message sur un sujet ntfy → `ntfy.js` le reçoit → `app.js` le classe (info, success, alerte, news selon les tags et la priorité) → `persona.js` choisit le commentaire et le geste de Lambert (wave, jump, fret, lean), ou refuse de parler (heures de silence) → l'avatar joue le geste avec un bruit de servomoteur, un son synthétisé retentit, une bulle affiche titre, message et commentaire, la voix lit le tout si activée.
 
 Les réglages sont stockés dans le `localStorage` du webview (clé `manuvers:settings`) : serveur, sujet, jeton, dernier identifiant reçu, mode, écran, options.
 
@@ -34,6 +35,17 @@ Les réglages sont stockés dans le `localStorage` du webview (clé `manuvers:se
 - Garder le Rust minimal : placement des fenêtres et fonctions système. La logique reste en JavaScript.
 - Le frontend doit continuer à fonctionner dans un simple navigateur (`npm run preview`), sans les fonctions d'écran.
 - Ne jamais commiter de jeton ntfy ni de sujet réel.
+
+## Lambert (LB-93) : le personnage
+
+Droïde de protocole et de cartographie, première réplique de la Légion Manuvers. Comme les répliques du Bobiverse, il a choisi son nom : Lambert, pour la projection Lambert-93, « qui conserve les angles. Moi aussi. »
+
+- Caractère : poli et pointilleux comme C-3PO, fier et franc comme L3-37. Inquiet de nature, pince-sans-rire, jamais servile : il refuse « maître », « robot », « mascotte ».
+- Phrasé : phrases courtes, vouvoiement, probabilités absurdement précises (« 3,7 %, j'ai arrondi à la hausse »), vocabulaire de géomètre (géoïde, ellipsoïde, reprojection, à deux centimètres près).
+- Signature : il clôt ce qui n'est pas négociable par « C'est cartographié. » À réserver aux refus et aux affirmations fermes, pas à chaque phrase.
+- Il sait dire non : silence la nuit sauf priorité 5, bouderie après cinq clics en douze secondes, lassitude à la troisième alerte identique en deux heures, « allez vous coucher » après minuit.
+- Apparence : céramique ivoire, cuivre, mécanique graphite, avant-bras gauche bleu dépareillé (pièce de rechange assumée), plastron gravé de courbes de niveau, rose des vents lumineuse, monocle de visée sur l'œil droit, prisme de géomètre sur le crâne. Les yeux prennent la couleur de l'humeur.
+- Ajouter des répliques dans `LINES` de `persona.js` en respectant ces règles et l'absence de tiret cadratin.
 
 ## Installation sur le Mac (première fois)
 
@@ -74,7 +86,8 @@ Le Rust a été vérifié avec `cargo check` sous Linux et le frontend testé da
 
 ## Feuille de route
 
-- **V1 (actuelle)** : avatar procédural, 4 réactions, bulle, sons, voix, ntfy robuste, modes scène et flottant, démarrage auto, écran maintenu allumé.
+- **V1** : avatar procédural, 4 réactions, bulle, sons, voix, ntfy robuste, modes scène et flottant, démarrage auto, écran maintenu allumé.
+- **V1.1 (actuelle)** : Lambert, droïde LB-93 : personnalité, commentaires, refus, bouderie, remarques spontanées, heures de silence, gestes expressifs, servomoteurs.
 - **V2** : avatar personnel au format VRM (VRoid Studio) chargé avec `@pixiv/three-vrm` (à embarquer localement), animations Mixamo, humeurs par source (Kleos, veille, mails), clic sur la bulle pour ouvrir la fiche Kleos, résumé vocal du matin.
 - **V3** : conversation. Micro, transcription, appel à l'API Claude avec les connecteurs (Kleos, mails, Notion), réponse vocale avec synchronisation labiale.
 - Sécurisation : sujet réservé avec jeton sur ntfy.sh, ou serveur ntfy auto-hébergé (Docker sur un petit VPS).
