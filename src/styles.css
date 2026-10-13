@@ -163,3 +163,15 @@ html[data-mode="floating"] .queue{right:10px;bottom:52px}
   .topbar{padding:12px 16px}
 }
 @media (prefers-reduced-motion: reduce){ .bubble.enter{animation:none} }
+
+/* Parler à Lambert */
+html[data-mode="floating"] .ask{bottom:8px;width:calc(100% - 16px)}
+/* La barre de conversation prend le bas de l'écran : le reste remonte d'un cran. */
+html.ia .recent, html.ia .queue{bottom:84px}
+.confirm{position:absolute;left:50%;bottom:124px;transform:translateX(-50%);width:min(560px,calc(100% - 48px));background:var(--panel);border:1px solid var(--accent);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;z-index:6}
+.confirm[hidden]{display:none}
+.confirm p{margin:0;font-size:14px}
+.confirm pre{margin:0;max-height:180px;overflow:auto;font-family:var(--mono);font-size:12px;background:color-mix(in srgb,var(--ink) 6%,transparent);border-radius:8px;padding:8px;white-space:pre-wrap}
+.carnet{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.carnet li{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px}
+.carnet li .btn{flex:none;padding:4px 10px;font-size:12px}

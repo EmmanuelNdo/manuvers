@@ -1,6 +1,6 @@
 [package]
 name = "manuvers"
-version = "0.4.0"
+version = "0.5.0"
 description = "Manuvers : l'avatar compagnon qui réagit aux automatisations de Manu"
 authors = ["Emmanuel Ndofunsu"]
 edition = "2021"
@@ -13,6 +13,13 @@ tauri = { version = "2", features = ["tray-icon", "macos-private-api", "image-pn
 tauri-plugin-autostart = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Lambert et l'API Claude : secrets au trousseau, appels réseau signés côté natif (src/ia.rs).
+keyring = { version = "3", features = ["apple-native"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.8"
+url = "2"
 
 [profile.release]
 codegen-units = 1

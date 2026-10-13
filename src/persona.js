@@ -119,7 +119,8 @@ window.createPersona = function(){
     },
 
     /* ev : { type, title, message, priority, test }  ctx : { quiet, date }
-       Renvoie { quip, outro, action, voice, sound } : voice et sound à false quand il refuse de parler. */
+       Renvoie { quip, outro, action, voice, sound, ordinaire } : voice et sound à false quand il refuse de parler ;
+       ordinaire quand c'est une réaction courante, que Claude peut réécrire. */
     react(ev, ctx){
       const d = ctx.date || new Date();
       const r = { quip:"", outro:"", action:ACTION[ev.type] || "wave", voice:true, sound:true };
@@ -146,6 +147,9 @@ window.createPersona = function(){
         }
       }
       r.quip = pick(ev.type, LINES[ev.type] || LINES.info);
+      // Réaction ordinaire : la seule que Claude peut réécrire (assistant.js). Les refus de
+      // nuit, l'urgence et la lassitude restent les siens, mot pour mot.
+      r.ordinaire = true;
       return r;
     },
 

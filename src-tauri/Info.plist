@@ -2,9 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <!-- Fusionné par Tauri dans le Info.plist de Manuvers.app : textes des demandes d'autorisation. -->
   <key>NSMicrophoneUsageDescription</key>
-  <string>Lambert vous écoute quand vous maintenez Espace ou le bouton Parler.</string>
+  <string>Lambert vous écoute quand vous maintenez le bouton Parler ou la barre d'espace.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
-  <string>Lambert transcrit ce que vous lui dites pour vous répondre.</string>
+  <string>Lambert transforme ce que vous dites en texte pour vous répondre.</string>
 </dict>
 </plist>
