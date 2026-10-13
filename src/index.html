@@ -19,8 +19,10 @@
         <span class="brand-sub" id="clock"></span>
       </div>
       <div class="top-actions">
+        <span class="status" id="claudeStatus" data-state="ok" hidden title="Vos sessions Claude Code sur ce Mac"><i></i><span id="claudeText"></span></span>
         <span class="status" id="status" data-state="off" title=""><i></i><span id="statusText">Non connecté</span></span>
         <button class="pill primary" id="soundBtn" hidden>Activer le son</button>
+        <button class="pill app-only" id="talkBtn" hidden title="Parler à Lambert : maintenir Espace pour parler, touche T pour écrire">Parler</button>
         <button class="pill icon" id="settingsBtn" title="Réglages (touche R)" aria-label="Ouvrir les réglages">Réglages</button>
       </div>
     </header>
@@ -40,21 +42,21 @@
     </div>
     <div class="queue" id="queue" hidden></div>
 
-    <!-- Parler à Lambert : application seulement, et seulement avec une clé de l'API Claude. -->
-    <form class="ask app-only" id="askForm" hidden autocomplete="off">
-      <button type="button" class="pill mic" id="micBtn" title="Maintenir pour parler (ou maintenir la barre d'espace)">Parler</button>
-      <input type="text" id="askInput" placeholder="Parlez à Lambert, ou écrivez-lui…" spellcheck="true">
-      <button type="submit" class="pill primary" id="askSend">Envoyer</button>
-      <span class="ask-state" id="askState" aria-live="polite"></span>
+    <form class="talk" id="talk" hidden autocomplete="off">
+      <span class="talk-state" id="talkState">À vous</span>
+      <div class="talk-row">
+        <input type="text" id="talkInput" placeholder="Écrivez à Lambert, ou maintenez Espace pour parler" aria-label="Message pour Lambert">
+        <button type="button" class="mic" id="micBtn" aria-label="Parler à Lambert" title="Parler"><i></i></button>
+      </div>
     </form>
 
-    <!-- Avant toute écriture dans Kleos : votre « oui ». -->
+    <!-- Avant d'effacer ou d'envoyer à un tiers : votre « oui ». -->
     <div class="confirm" id="confirm" hidden role="alertdialog" aria-labelledby="confirmTitle">
-      <strong id="confirmTitle">Lambert veut écrire dans Kleos</strong>
+      <strong id="confirmTitle">Lambert attend votre accord</strong>
       <p id="confirmText"></p>
       <pre id="confirmArgs"></pre>
       <div class="row">
-        <button class="btn" id="confirmYes">Oui, enregistrer</button>
+        <button class="btn" id="confirmYes">Oui, allez-y</button>
         <button class="btn ghost" id="confirmNo">Non</button>
       </div>
       <p class="hint">Vous pouvez aussi répondre « oui » ou « non » au micro.</p>
@@ -90,6 +92,14 @@
       </label>
       <div class="row"><button class="btn" id="connectBtn">Enregistrer et connecter</button></div>
       <p class="hint" id="connHint"></p>
+    </section>
+
+    <section class="app-only">
+      <h2>Sessions Claude Code</h2>
+      <div class="toggles">
+        <label for="optClaude"><input type="checkbox" id="optClaude"> Lambert suit mes sessions Claude Code et me prévient quand l'une m'attend ou a terminé</label>
+      </div>
+      <p class="hint">Lecture seule des transcriptions de ce Mac (~/.claude/projects). Rien n'est envoyé ailleurs, aucun jeton n'est consommé.</p>
     </section>
 
     <section class="app-only">
@@ -220,7 +230,7 @@
 <script src="voice.js"></script>
 <script src="ntfy.js"></script>
 <script src="assistant.js"></script>
-<script src="micro.js"></script>
+<script src="sessions.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
