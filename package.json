@@ -1,6 +1,6 @@
 {
   "name": "manuvers",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "Manuvers : l'avatar compagnon qui réagit aux automatisations de Manu",
   "scripts": {

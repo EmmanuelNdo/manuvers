@@ -74,6 +74,13 @@ function aConfirmer(outil){
   return Boolean(outil.annotations && outil.annotations.destructiveHint === true) || SORTANT.test(outil.name);
 }
 
+/* Une attente qui ne dure jamais toujours : passé le délai, une erreur qu'on peut dire. */
+function avecDelai(promesse, ms, message){
+  let minuteur;
+  const delai = new Promise((_, rejeter) => { minuteur = setTimeout(() => rejeter(new Error(message)), ms); });
+  return Promise.race([promesse, delai]).finally(() => clearTimeout(minuteur));
+}
+
 /* ---------- Réponses MCP : JSON simple ou flux SSE ---------- */
 function lireReponseMcp(corps, id){
   const t = (corps || "").trim();
@@ -121,7 +128,7 @@ window.createAssistant = function(opts){
     const req = Object.assign({ model:modele, max_tokens:4000 }, corps);
     req.output_config = Object.assign({ effort:"low" }, corps.output_config || {});
     if(avecRepli) req.fallbacks = "default";
-    const r = await invoke("claude_messages", { corps:req, betas:avecRepli ? ["server-side-fallback-2026-07-01"] : [] });
+    const r = await avecDelai(invoke("claude_messages", { corps:req, betas:avecRepli ? ["server-side-fallback-2026-07-01"] : [] }), 75000, "Claude ne répond pas (plus d'une minute).");
     if(r.status >= 400){
       const msg = r.corps && r.corps.error ? r.corps.error.message : "erreur " + r.status;
       throw new Error("API Claude : " + msg);
@@ -137,7 +144,7 @@ window.createAssistant = function(opts){
     const id = notification ? undefined : ++rpcId;
     const requete = { jsonrpc:"2.0", method, params:params || {} };
     if(id !== undefined) requete.id = id;
-    const r = await invoke("kleos_mcp", { requete, session });
+    const r = await avecDelai(invoke("kleos_mcp", { requete, session }), 30000, "Kleos ne répond pas.");
     if(r.session) session = r.session;
     if(notification) return null;
     if(r.status >= 400) throw new Error("Kleos : erreur " + r.status);
@@ -336,6 +343,16 @@ ${ev}
     },
 
     converser,
+
+    /* Après une erreur, on repart d'une conversation neuve : un historique coupé
+       au milieu d'un appel d'outil serait refusé par l'API. */
+    reinitialiser(){ historique = []; },
+
+    /* Un appel minimal, pour vérifier la clé depuis les réglages. Rend le modèle qui a répondu. */
+    async testerCle(){
+      const rep = await appeler({ max_tokens:16, messages:[{ role:"user", content:"Réponds seulement : ok." }] });
+      return rep.model || "Claude";
+    },
 
     /* Chaque notification reçue nourrit le contexte de la conversation. */
     noterEvenement(ev){

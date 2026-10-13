@@ -32,6 +32,7 @@ src-tauri/            Coque native Tauri v2, volontairement mince
                       besoin : claude_messages, kleos_mcp, kleos_connecter (OAuth 2.1 + PKCE, retour sur
                       127.0.0.1:8766). Aucune clé ne passe par la page.
   Info.plist          Textes des autorisations micro et reconnaissance vocale (fusionné par Tauri)
+  Entitlements.plist  Droit au micro : l'app est signée avec le « hardened runtime », qui coupe le micro sans ce droit
   tauri.conf.json     Fenêtre transparente sans bordure, macOSPrivateApi, CSP stricte
 .github/workflows/release-mac.yml  Compile l'app Mac universelle et la publie sur Releases (étiquette vX.Y.Z)
 scripts/notify-test.sh  Envoi d'une notification de test
@@ -46,6 +47,7 @@ Les réglages sont stockés dans le `localStorage` du webview (clé `manuvers:se
 
 - Interface en français, vouvoiement. Jamais de tiret cadratin (U+2014) dans les textes : utiliser deux-points, virgule ou point.
 - Aucune ressource externe au chargement : tout est local (Three.js, polices). Connexions sortantes : ntfy depuis la page ; l'API Claude et Kleos depuis la coque native seulement (ia.rs), parce qu'elles portent des secrets.
+- Toute commande Rust qui touche au trousseau ou au disque est `async` : une commande synchrone tourne sur le fil principal, et une demande d'accès au trousseau cachée derrière le plein écran figerait toute l'application.
 - Garder le Rust minimal : placement des fenêtres, fonctions système, et garde des secrets (ia.rs : trousseau et appels signés). La logique, y compris celle de la conversation, reste en JavaScript.
 - Aucune clé ni aucun jeton dans le dépôt, dans `localStorage` ou dans la page : trousseau uniquement. Le dépôt et sa version GitHub Pages sont publics.
 - Lambert lit et écrit dans Kleos sans demander : c'est le choix de Manu. Deux exceptions passent par le panneau de confirmation (`aConfirmer` d'assistant.js) : ce qui efface (annotation MCP `destructiveHint`, dont `lambert_effacer`) et ce qui part chez un tiers (`envoyer_*`, un devis envoyé au client).

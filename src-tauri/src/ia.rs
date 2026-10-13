@@ -58,10 +58,13 @@ fn client() -> Result<reqwest::Client, String> {
 }
 
 // ── Clé de l'API Claude ────────────────────────────────────────────────────
+// Toutes les commandes qui touchent au trousseau sont asynchrones : une commande
+// synchrone tourne sur le fil principal, et si macOS demande l'accès au trousseau
+// dans une fenêtre cachée derrière le plein écran, toute l'application se fige.
 
 /// Enregistre la clé dans le trousseau. Le champ de saisie est vidé côté page juste après.
 #[tauri::command]
-pub fn cle_claude_enregistrer(cle: String) -> Result<(), String> {
+pub async fn cle_claude_enregistrer(cle: String) -> Result<(), String> {
     let cle = cle.trim();
     if !cle.starts_with("sk-ant-") {
         return Err("Ce n'est pas une clé de l'API Claude : elle commence par « sk-ant- ».".into());
@@ -70,12 +73,12 @@ pub fn cle_claude_enregistrer(cle: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn cle_claude_presente() -> bool {
+pub async fn cle_claude_presente() -> bool {
     lire_secret(CLE_ANTHROPIC).is_some()
 }
 
 #[tauri::command]
-pub fn cle_claude_effacer() {
+pub async fn cle_claude_effacer() {
     effacer_secret(CLE_ANTHROPIC);
 }
 
@@ -349,13 +352,13 @@ pub struct EtatKleos {
 }
 
 #[tauri::command]
-pub fn kleos_etat() -> EtatKleos {
+pub async fn kleos_etat() -> EtatKleos {
     let j = lire_jeton();
     EtatKleos { connecte: j.is_some(), mcp: j.map(|j| j.mcp) }
 }
 
 #[tauri::command]
-pub fn kleos_deconnecter() {
+pub async fn kleos_deconnecter() {
     effacer_secret(CLE_KLEOS);
 }
 
