@@ -1,6 +1,7 @@
 // Manuvers : coque native de l'avatar compagnon.
 // Le Rust reste volontairement mince : placement de la fenêtre sur le bon écran,
-// icône de barre des menus, lancement au démarrage, maintien de l'écran allumé.
+// icône de barre des menus, lancement au démarrage, maintien de l'écran allumé,
+// lecture des transcriptions récentes de Claude Code.
 // Toute la logique métier (ntfy, animations, réglages) vit dans ../src.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -161,6 +162,55 @@ fn set_autostart(app: AppHandle, enabled: bool) -> Result<bool, String> {
     launcher.is_enabled().map_err(|e| e.to_string())
 }
 
+#[derive(Serialize)]
+struct SessionTail {
+    project: String,
+    id: String,
+    mtime_ms: u64,
+    tail: String,
+}
+
+/// Fin des transcriptions récentes de Claude Code (~/.claude/projects/*/*.jsonl, ou $CLAUDE_CONFIG_DIR/projects).
+/// Lecture seule ; l'interprétation (au travail, vous attend, terminé) se fait en JavaScript (src/sessions.js).
+#[tauri::command]
+fn claude_sessions(max_age_secs: u64, max_bytes: u64) -> Vec<SessionTail> {
+    use std::io::{Read, Seek, SeekFrom};
+    let root = std::env::var_os("CLAUDE_CONFIG_DIR")
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".claude")))
+        .map(|d| d.join("projects"));
+    let Some(root) = root else { return vec![] };
+    let now = std::time::SystemTime::now();
+    let mut found: Vec<(u64, std::path::PathBuf, String, String)> = vec![];
+    for proj in std::fs::read_dir(&root).into_iter().flatten().flatten() {
+        let project = proj.file_name().to_string_lossy().to_string();
+        for f in std::fs::read_dir(proj.path()).into_iter().flatten().flatten() {
+            let path = f.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("jsonl") { continue; }
+            let Ok(meta) = f.metadata() else { continue };
+            let Ok(modified) = meta.modified() else { continue };
+            if now.duration_since(modified).map(|d| d.as_secs() > max_age_secs).unwrap_or(false) { continue; }
+            let mtime_ms = modified.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+            let id = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+            found.push((mtime_ms, path, project.clone(), id));
+        }
+    }
+    found.sort_by(|a, b| b.0.cmp(&a.0));
+    found.truncate(20);
+    found
+        .into_iter()
+        .filter_map(|(mtime_ms, path, project, id)| {
+            let mut file = std::fs::File::open(&path).ok()?;
+            let len = file.metadata().ok()?.len();
+            let start = len.saturating_sub(max_bytes.min(512 * 1024));
+            file.seek(SeekFrom::Start(start)).ok()?;
+            let mut buf = Vec::new();
+            file.read_to_end(&mut buf).ok()?;
+            Some(SessionTail { project, id, mtime_ms, tail: String::from_utf8_lossy(&buf).to_string() })
+        })
+        .collect()
+}
+
 fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     let menu = Menu::with_items(
         app,
@@ -221,7 +271,8 @@ fn main() {
             apply_mode,
             set_click_through,
             set_keep_awake,
-            set_autostart
+            set_autostart,
+            claude_sessions
         ])
         .setup(|app| {
             build_tray(app)?;

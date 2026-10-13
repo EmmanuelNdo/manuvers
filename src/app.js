@@ -16,7 +16,7 @@ const DEFAULTS = {
   mode:"scene", monitor:"", clickThrough:false,
   sound:true, voice:false, bored:true, autostart:true,
   quips:true, chatty:true, quiet:true, quietFrom:"21:30", quietTo:"07:30", met:false, timbre:0.6,
-  apiKey:"", model:"claude-opus-5", kleosUrl:"", kleosToken:"",
+  apiKey:"", model:"claude-opus-5", kleosUrl:"", kleosToken:"", claude:true,
   keepAwake:true, awakeFrom:"08:30", awakeTo:"19:00", weekdays:true
 };
 const S = (() => {
@@ -291,6 +291,21 @@ function updateSnippet(){
   ${base}/${S.topic}`;
 }
 
+/* ---------- Sessions Claude Code (application uniquement) : lecture locale des transcriptions ---------- */
+const claudeWatch = invoke && window.createSessionWatcher ? window.createSessionWatcher({
+  invoke,
+  onEvent:ev => handle(ev),
+  onSummary:c => {
+    const el = $("claudeStatus"), parts = [];
+    if(c.blocked) parts.push(c.blocked + (c.blocked > 1 ? " vous attendent" : " vous attend"));
+    if(c.working) parts.push(c.working + " au travail");
+    el.hidden = !parts.length;
+    el.dataset.state = c.blocked ? "retry" : "ok";
+    $("claudeText").textContent = "Claude Code : " + parts.join(" · ");
+  }
+}) : null;
+function updateClaude(){ if(!claudeWatch) return; if(S.claude) claudeWatch.start(); else claudeWatch.stop(); }
+
 /* ---------- Écran (application uniquement) ---------- */
 let monitorSig = "";
 async function refreshMonitors(){
@@ -493,7 +508,7 @@ window.addEventListener("keydown", e => {
   if(e.key === "Escape") openDrawer(false);
 });
 
-const CHECKS = { optSound:"sound", optVoice:"voice", optBored:"bored", optAutostart:"autostart", optAwake:"keepAwake", optWeekdays:"weekdays", optClick:"clickThrough", optQuips:"quips", optChatty:"chatty", optQuiet:"quiet" };
+const CHECKS = { optClaude:"claude", optSound:"sound", optVoice:"voice", optBored:"bored", optAutostart:"autostart", optAwake:"keepAwake", optWeekdays:"weekdays", optClick:"clickThrough", optQuips:"quips", optChatty:"chatty", optQuiet:"quiet" };
 function syncForm(){
   $("server").value = S.server; $("topic").value = S.topic; $("token").value = S.token;
   $("mode").value = S.mode; $("awakeFrom").value = S.awakeFrom; $("awakeTo").value = S.awakeTo;
@@ -510,6 +525,7 @@ for(const [id, k] of Object.entries(CHECKS)){
   $(id).addEventListener("change", () => {
     S[k] = $(id).checked; save();
     if(k === "sound") ensureAudio();
+    if(k === "claude") updateClaude();
     if(k === "voice"){ if(S.voice){ ensureAudio(); voice.preload(); setTimeout(() => speak(["Voix activée. Lambert, à votre écoute."]), 400); } else voice.cancel(); }
     if(k === "autostart" && invoke) invoke("set_autostart", { enabled:S.autostart }).catch(e => console.warn(e));
     if(k === "keepAwake" || k === "weekdays"){ awakeOn = null; updateAwake(); }
@@ -580,6 +596,7 @@ if(listen){
   ensureAudio();
   if(S.voice) voice.preload();
   connect();
+  updateClaude();
   setTimeout(() => {
     if(current || queue.length) return;
     const g = persona.greeting(new Date(), !S.met);

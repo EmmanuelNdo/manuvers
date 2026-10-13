@@ -19,6 +19,7 @@
         <span class="brand-sub" id="clock"></span>
       </div>
       <div class="top-actions">
+        <span class="status" id="claudeStatus" data-state="ok" hidden title="Vos sessions Claude Code sur ce Mac"><i></i><span id="claudeText"></span></span>
         <span class="status" id="status" data-state="off" title=""><i></i><span id="statusText">Non connecté</span></span>
         <button class="pill primary" id="soundBtn" hidden>Activer le son</button>
         <button class="pill" id="talkBtn" title="Parler à Lambert : maintenir Espace pour parler, touche T pour écrire">Parler</button>
@@ -102,6 +103,14 @@
       </label>
       <div class="row"><button class="btn" id="connectBtn">Enregistrer et connecter</button></div>
       <p class="hint" id="connHint"></p>
+    </section>
+
+    <section class="app-only">
+      <h2>Sessions Claude Code</h2>
+      <div class="toggles">
+        <label for="optClaude"><input type="checkbox" id="optClaude"> Lambert suit mes sessions Claude Code et me prévient quand l'une m'attend ou a terminé</label>
+      </div>
+      <p class="hint">Lecture seule des transcriptions de ce Mac (~/.claude/projects). Rien n'est envoyé ailleurs, aucun jeton n'est consommé.</p>
     </section>
 
     <section class="app-only">
@@ -189,6 +198,7 @@
 <script src="vendor/anthropic-sdk.js"></script>
 <script src="brain.js"></script>
 <script src="ntfy.js"></script>
+<script src="sessions.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

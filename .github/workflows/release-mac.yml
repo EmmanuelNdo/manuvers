@@ -1,0 +1,53 @@
+# Compile l'application Mac (Apple Silicon et Intel, binaire universel) et la publie sur la page Releases.
+# Déclenchement : pousser une étiquette vX.Y.Z, ou lancer le workflow à la main (Actions > App Mac > Run workflow),
+# qui dépose alors le .zip en artefact sans créer de version. Sur une PR qui touche la coque, il vérifie que la compilation passe.
+# L'application n'est pas signée avec un identifiant de développeur Apple (signature ad hoc) :
+# au premier lancement, Réglages Système > Confidentialité et sécurité > Ouvrir quand même,
+# ou : xattr -dr com.apple.quarantine /Applications/Manuvers.app
+name: App Mac
+
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths: ['src-tauri/**', '.github/workflows/release-mac.yml', 'package.json', 'package-lock.json']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npx tauri build --bundles app --target universal-apple-darwin
+      - name: Archive
+        id: zip
+        run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          NAME="Manuvers-${VERSION}-mac.zip"
+          ditto -c -k --keepParent src-tauri/target/universal-apple-darwin/release/bundle/macos/Manuvers.app "$NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.zip.outputs.name }}
+          path: ${{ steps.zip.outputs.name }}
+      - name: Publier la version
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "Manuvers $GITHUB_REF_NAME" --notes "Lambert, en application Mac. Téléchargez le .zip, ouvrez-le, glissez Manuvers dans Applications. Premier lancement : Réglages Système > Confidentialité et sécurité > Ouvrir quand même (l'application n'est pas signée par Apple)."
+          gh release upload "$GITHUB_REF_NAME" "${{ steps.zip.outputs.name }}" --clobber
