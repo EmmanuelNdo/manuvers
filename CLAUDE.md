@@ -46,7 +46,8 @@ Les réglages sont stockés dans le `localStorage` du webview (clé `manuvers:se
 - Aucune ressource externe au chargement : tout est local (Three.js, polices). Connexions sortantes : ntfy depuis la page ; l'API Claude et Kleos depuis la coque native seulement (ia.rs), parce qu'elles portent des secrets.
 - Garder le Rust minimal : placement des fenêtres, fonctions système, et garde des secrets (ia.rs : trousseau et appels signés). La logique, y compris celle de la conversation, reste en JavaScript.
 - Aucune clé ni aucun jeton dans le dépôt, dans `localStorage` ou dans la page : trousseau uniquement. Le dépôt et sa version GitHub Pages sont publics.
-- Lambert n'écrit jamais dans Kleos sans votre « oui » : tout outil hors de la liste `LECTURE` d'assistant.js passe par le panneau de confirmation. Liste d'autorisation, pas d'interdiction : un nouvel outil d'écriture est confirmé par défaut.
+- Lambert n'écrit jamais dans Kleos sans votre « oui » : tout outil hors de la liste `LECTURE` d'assistant.js passe par le panneau de confirmation. Liste d'autorisation, pas d'interdiction : un nouvel outil d'écriture est confirmé par défaut. Seule exception : son propre carnet (`CARNET` : `lambert_retenir`, `lambert_consigner`), qu'il tient seul. `lambert_effacer` reste confirmé.
+- La mémoire de Lambert vit dans Kleos (tables `lambert_souvenirs` et `lambert_messages`), jamais sur le Mac : le carnet est relu au début de chaque conversation et placé dans la consigne, chaque échange est consigné au journal sans jamais retarder la réponse. Réglages, section « Mémoire de Lambert » : relire le carnet, oublier un souvenir, effacer le journal ou tout.
 - Le frontend doit continuer à fonctionner dans un simple navigateur (`npm run preview`), sans les fonctions d'écran.
 - Ne jamais commiter de jeton ntfy ni de sujet réel.
 
@@ -101,6 +102,7 @@ Le Rust a été vérifié avec `cargo check` sous Linux et le frontend testé da
 - Réglages, section « Intelligence de Lambert » : la clé de l'API Claude part au trousseau (service `fr.datando.manuvers`), le modèle se choisit (Opus 5.5 par défaut, effort bas pour la vitesse), « Connecter Kleos » ouvre le navigateur sur l'accord OAuth de Kleos.
 - Commentaires : pour une réaction ordinaire (`persona.react` renvoie `ordinaire`), `assistant.commenter` demande un commentaire à Claude, l'attend cinq secondes au plus, le vérifie (pas de tiret cadratin, pas de tutoiement, 260 caractères au plus) et retombe sur la réplique fixe sinon. Les refus de nuit, l'urgence et la lassitude ne sont jamais réécrits.
 - Conversation : barre en bas de l'écran, bouton « Parler » ou barre d'espace maintenus. Les outils de Kleos sont lus par `tools/list` ; la lecture part seule, l'écriture attend « Oui, enregistrer » ou un « oui » au micro. Historique effacé après dix minutes de silence ou quarante messages (jamais tronqué en cours : cela invaliderait le raisonnement déjà fourni).
+- Mémoire : « retiens que… » ajoute un souvenir sans confirmation ; une nouvelle conversation le connaît. Réglages, « Mémoire de Lambert » : le carnet s'affiche, « Oublier » le retire de Kleos, « Effacer le journal » et « Tout effacer » demandent confirmation.
 - Coût : journal par mois dans `localStorage` (`manuvers:consommation`, des compteurs, aucun contenu), affiché dans les réglages.
 
 ## Commandes utiles

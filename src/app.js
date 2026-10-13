@@ -260,6 +260,36 @@ function majIa(etat){
   $("kleosEtat").textContent = etat && etat.kleos ? "Kleos connecté : Lambert lit vos fiches et vous demande confirmation avant d'écrire." : "Kleos non connecté.";
   const c = ia.consommation();
   $("iaConso").textContent = c.appels ? `Ce mois-ci sur cet appareil : ${c.appels} appel(s), environ ${c.cout.toFixed(2).replace(".", ",")} $.` : "";
+  $("memoire").hidden = !(pret && etat.kleos);
+}
+
+/* La mémoire de Lambert : son carnet, relu et élagué depuis les réglages. */
+async function lireCarnet(){
+  const ul = $("carnet");
+  $("memoireEtat").textContent = "Lecture du carnet…";
+  try{
+    const liste = await ia.souvenirs();
+    ul.replaceChildren(...liste.map(s => {
+      const li = document.createElement("li");
+      const t = document.createElement("span"); t.textContent = s.texte;
+      const b = document.createElement("button"); b.className = "btn ghost"; b.textContent = "Oublier";
+      b.addEventListener("click", async () => {
+        b.disabled = true;
+        try{ await ia.oublier(s.id); li.remove(); }
+        catch(e){ b.disabled = false; $("memoireEtat").textContent = "Impossible d'oublier : " + e; }
+      });
+      li.append(t, b); return li;
+    }));
+    $("memoireEtat").textContent = liste.length ? `${liste.length} souvenir(s).` : "Carnet vide.";
+  }catch(e){ $("memoireEtat").textContent = "Lecture impossible : " + e; }
+}
+async function effacerMemoire(quoi, question){
+  if(!confirm(question)) return;
+  try{
+    await ia.effacerMemoire(quoi);
+    $("memoireEtat").textContent = quoi === "journal" ? "Journal effacé." : "Mémoire effacée.";
+    if(quoi !== "journal") $("carnet").replaceChildren();
+  }catch(e){ $("memoireEtat").textContent = "Effacement impossible : " + e; }
 }
 function demanderConfirmation(d){
   return new Promise(resolve => {
@@ -352,6 +382,9 @@ $("kleosBtn").addEventListener("click", async () => {
   catch(e){ $("kleosEtat").textContent = "Connexion impossible : " + e; }
 });
 $("kleosOff").addEventListener("click", async () => { majIa(await ia.deconnecterKleos()); });
+$("carnetLire").addEventListener("click", lireCarnet);
+$("journalEffacer").addEventListener("click", () => effacerMemoire("journal", "Effacer tout le journal de vos conversations avec Lambert ? Son carnet est conservé."));
+$("memoireEffacer").addEventListener("click", () => effacerMemoire("tout", "Effacer le carnet et le journal de Lambert ? Il ne se souviendra plus de rien."));
 
 /* ---------- ntfy ---------- */
 function classify(tags, priority){

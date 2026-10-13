@@ -170,3 +170,6 @@ html.ia .recent, html.ia .queue{bottom:84px}
 .confirm[hidden]{display:none}
 .confirm p{margin:0;font-size:14px}
 .confirm pre{margin:0;max-height:180px;overflow:auto;font-family:var(--mono);font-size:12px;background:color-mix(in srgb,var(--ink) 6%,transparent);border-radius:8px;padding:8px;white-space:pre-wrap}
+.carnet{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.carnet li{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px}
+.carnet li .btn{flex:none;padding:4px 10px;font-size:12px}
