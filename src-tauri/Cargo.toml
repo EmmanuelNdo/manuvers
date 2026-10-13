@@ -1,6 +1,6 @@
 [package]
 name = "manuvers"
-version = "0.5.0"
+version = "0.5.1"
 description = "Manuvers : l'avatar compagnon qui réagit aux automatisations de Manu"
 authors = ["Emmanuel Ndofunsu"]
 edition = "2021"

@@ -334,12 +334,13 @@ $("confirmNo").addEventListener("click", () => repondreConfirmation(false));
 function startListening(){
   if(!iaPrete()) return;
   ensureAudio(); voice.cancel(); talkOpen(!Rec);
-  if(!Rec){ talkState("Écrivez"); return; }
+  if(!Rec){ talkState("Pas de reconnaissance vocale ici : écrivez"); return; }
   if(listening) return;
   try{ rec = new Rec(); }catch(e){ talkOpen(true); talkState("Écrivez"); return; }
   rec.lang = "fr-FR"; rec.interimResults = true; rec.continuous = false;
   rec.onresult = e => { let t = ""; for(const r of e.results) t += r[0].transcript; $("talkInput").value = t; };
-  rec.onerror = e => talkState(e.error === "not-allowed" || e.error === "service-not-allowed" ? "Micro refusé : écrivez" : "Je n'ai rien entendu");
+  // Le code d'erreur reste affiché : c'est lui qui dit, sur le Mac, ce qui coince.
+  rec.onerror = e => talkState((e.error === "not-allowed" || e.error === "service-not-allowed" ? "Micro refusé" : e.error === "no-speech" ? "Je n'ai rien entendu" : "Micro indisponible") + " (" + e.error + ") : touche T pour écrire");
   rec.onend = () => {
     listening = false; $("micBtn").classList.remove("on");
     const t = $("talkInput").value.trim();
@@ -392,14 +393,18 @@ async function sendToLambert(text, aLOral){
     finish(reponse || "…");
   }catch(err){
     console.warn("Conversation :", err);
-    finish("Liaison perdue avec mon cerveau. " + (err && err.message ? err.message : "") + " Je réessaierai.");
+    ia.reinitialiser();
+    const msg = String(err && err.message ? err.message : err || "");
+    finish(/401|authentication|invalid x-api-key/i.test(msg) ? "Ma clé d'accès est refusée. Vérifiez-la dans les réglages, je vous prie."
+      : /cl[ée] absente|aucune cl[ée]|no key/i.test(msg) ? "Il me manque ma clé d'accès à Claude. Réglages, section Intelligence de Lambert."
+      : "Liaison perdue avec mon cerveau. " + msg + " Je réessaierai.");
   }finally{
     majIa(await ia.rafraichir());
   }
 }
 $("talk").addEventListener("submit", e => { e.preventDefault(); sendToLambert($("talkInput").value, false); });
 $("micBtn").addEventListener("click", () => { if(listening) stopListening(); else startListening(); });
-$("talkBtn").addEventListener("click", () => { if(Rec) startListening(); else { talkOpen(true); talkState("Écrivez"); } });
+$("talkBtn").addEventListener("click", () => { if(Rec) startListening(); else { talkOpen(true); talkState("Pas de reconnaissance vocale ici : écrivez"); } });
 window.addEventListener("keydown", e => {
   if(!iaPrete()) return;
   if(/INPUT|SELECT|TEXTAREA|BUTTON/.test(document.activeElement.tagName)){ if(e.key === "Escape" && document.activeElement.id === "talkInput"){ document.activeElement.blur(); talkClose(); } return; }
@@ -415,6 +420,11 @@ $("iaCleBtn").addEventListener("click", async () => {
   try{ majIa(await ia.enregistrerCle(cle)); }catch(e){ $("iaCleEtat").textContent = String(e); }
 });
 $("iaCleEffacer").addEventListener("click", async () => { majIa(await ia.effacerCle()); });
+$("iaCleTester").addEventListener("click", async () => {
+  $("iaCleEtat").textContent = "Test en cours…";
+  try{ $("iaCleEtat").textContent = "La clé fonctionne : " + await ia.testerCle() + " a répondu."; }
+  catch(e){ $("iaCleEtat").textContent = "La clé ne fonctionne pas : " + (e && e.message ? e.message : e); }
+});
 $("iaModele").addEventListener("change", () => { S.iaModele = $("iaModele").value; save(); });
 $("optIaQuips").addEventListener("change", () => { S.iaQuips = $("optIaQuips").checked; save(); });
 $("kleosBtn").addEventListener("click", async () => {

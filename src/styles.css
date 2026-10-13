@@ -165,7 +165,9 @@ html[data-mode="floating"] .queue{right:10px;bottom:52px}
 @media (prefers-reduced-motion: reduce){ .bubble.enter{animation:none} }
 
 /* Parler à Lambert */
-html[data-mode="floating"] .ask{bottom:8px;width:calc(100% - 16px)}
+/* En flottant, la barre du bas porte Réglages et Parler : la conversation se pose au-dessus, jamais dessus. */
+html[data-mode="floating"] .talk{bottom:58px;width:calc(100% - 16px)}
+html[data-mode="floating"] .confirm{bottom:150px;width:calc(100% - 16px)}
 /* La barre de conversation prend le bas de l'écran : le reste remonte d'un cran. */
 html.ia .recent, html.ia .queue{bottom:84px}
 .confirm{position:absolute;left:50%;bottom:124px;transform:translateX(-50%);width:min(560px,calc(100% - 48px));background:var(--panel);border:1px solid var(--accent);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;z-index:6}

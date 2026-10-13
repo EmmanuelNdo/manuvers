@@ -177,7 +177,7 @@ struct SessionTail {
 /// Fin des transcriptions récentes de Claude Code (~/.claude/projects/*/*.jsonl, ou $CLAUDE_CONFIG_DIR/projects).
 /// Lecture seule ; l'interprétation (au travail, vous attend, terminé) se fait en JavaScript (src/sessions.js).
 #[tauri::command]
-fn claude_sessions(max_age_secs: u64, max_bytes: u64) -> Vec<SessionTail> {
+async fn claude_sessions(max_age_secs: u64, max_bytes: u64) -> Vec<SessionTail> {
     use std::io::{Read, Seek, SeekFrom};
     let root = std::env::var_os("CLAUDE_CONFIG_DIR")
         .map(std::path::PathBuf::from)
