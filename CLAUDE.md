@@ -13,18 +13,23 @@ src/                  Frontend statique, servi tel quel par Tauri (aucun bundler
   avatar.js           Lambert en 3D, procédural (Three.js) : window.createAvatar(canvas, stage)
   persona.js          Personnalité de Lambert : répliques, refus, bouderie, remarques (aucun DOM)
   punchlines.js       Les cent punchlines de sa vie quotidienne, par activité (tablette, lecture, philosophie...)
+  brain.js            Conversation (V3) : Claude via le SDK embarqué, mémoire persistante, outils de souvenir, MCP Kleos
   voice.js            Voix de Lambert : Piper local + filtre de droïde (WebAudio), repli sur la voix système
   voice-worker.js     Worker de synthèse : phonétisation espeak-ng (WASM) puis inférence ONNX, phrase par phrase
   voices/             Modèle de voix Piper (fr_FR-tom-medium, 44,1 kHz)
+  sessions.js         Suivi des sessions Claude Code (application) : état déduit des transcriptions locales
   ntfy.js             Client ntfy robuste : flux JSON, jeton, rattrapage "since", reconnexion
   app.js              Réglages, file de notifications, sons, voix, écrans, veille, menu
   vendor/three.min.js Three.js r128 (UMD) embarqué : pas de CDN
+  vendor/anthropic-sdk.js  SDK Anthropic regroupé pour le navigateur (window.Anthropic)
   vendor/onnx/        onnxruntime-web (WASM), vendor/piper/ : phonétiseur Piper ; licences dans vendor/LICENCES.md
   fonts/              Polices woff2 embarquées (OFL)
 src-tauri/            Coque native Tauri v2, volontairement mince
-  src/main.rs         Commandes : list_monitors, apply_mode, set_click_through, set_keep_awake, set_autostart
+  src/main.rs         Commandes : list_monitors, apply_mode, set_click_through, set_keep_awake, set_autostart, claude_sessions
                       + icône de barre des menus (événement "tray" émis vers le frontend)
   tauri.conf.json     Fenêtre transparente sans bordure, macOSPrivateApi, CSP stricte
+  Info.plist          Autorisations macOS du micro et de la reconnaissance vocale
+.github/workflows/release-mac.yml  Compile l'app Mac universelle et la publie sur Releases (étiquette vX.Y.Z)
 scripts/notify-test.sh  Envoi d'une notification de test
 docs/INTEGRATIONS.md    Brancher tâches planifiées, hooks Claude Code, Kleos
 ```
@@ -36,7 +41,7 @@ Les réglages sont stockés dans le `localStorage` du webview (clé `manuvers:se
 ## Règles du projet
 
 - Interface en français, vouvoiement. Jamais de tiret cadratin (U+2014) dans les textes : utiliser deux-points, virgule ou point.
-- Aucune ressource externe au chargement : tout est local (Three.js, polices). La seule connexion sortante est ntfy.
+- Aucune ressource externe au chargement : tout est local (Three.js, polices, voix, SDK). Connexions sortantes : ntfy, et l'API Anthropic uniquement quand on converse avec Lambert (clé saisie dans les réglages, jamais commitée).
 - Garder le Rust minimal : placement des fenêtres et fonctions système. La logique reste en JavaScript.
 - Le frontend doit continuer à fonctionner dans un simple navigateur (`npm run preview`), sans les fonctions d'écran.
 - Ne jamais commiter de jeton ntfy ni de sujet réel.
@@ -55,7 +60,28 @@ Droïde de protocole et de cartographie, première réplique de la Légion Manuv
 - Ajouter des répliques dans `punchlines.js` (vie quotidienne) ou dans `LINES` de `persona.js` (réactions), en respectant ces règles et l'absence de tiret cadratin.
 - Voix : Piper « tom » calculé sur l'appareil, un peu plus aigu et vif (`PITCH`, `LENGTH` dans `voice.js`), passé dans un filtre de droïde réglable (« Timbre de droïde » dans les réglages). `normalize()` adapte le texte à l'oral (LB-93, heures, pourcentages, sigles). La bouche suit le niveau sonore réel.
 
-## Installation sur le Mac (première fois)
+## Conversation (V3)
+
+- On parle à Lambert en maintenant Espace (ou le bouton Parler), on lui écrit avec la touche T. Reconnaissance vocale du navigateur quand elle existe (`SpeechRecognition`), sinon clavier.
+- `brain.js` appelle `claude-opus-5` (effort `low`, réponses courtes lues par la voix) en flux, avec repli serveur `fallbacks: "default"` (bêta `server-side-fallback-2026-07-01`). Modèle réglable : Opus 5, Sonnet 5, Haiku 4.5.
+- Le prompt système reprend le personnage ci-dessus, puis un contexte variable : date, vie commune (jours, conversations, notifications par type), souvenirs, dernières notifications.
+- Mémoire persistante (`localStorage`, clé `manuvers:memoire`) : 40 derniers messages du fil, souvenirs notés par Lambert lui-même (outils `se_souvenir`, `oublier_souvenir`), statistiques, 20 dernières notifications. Bouton « Effacer sa mémoire » dans les réglages.
+- Kleos : connecteur MCP de l'API (`mcp_servers` + `mcp_toolset`, bêta `mcp-client-2025-11-20`) si l'adresse du serveur est renseignée. Toute écriture dans Kleos passe par une confirmation orale de Manu. Les connecteurs de claude.ai (Gmail, Notion) ne sont pas accessibles par l'API : il faudra leurs propres serveurs MCP et jetons.
+
+## Sessions Claude Code (application)
+
+- Comme Agent Standup, Lambert lit les transcriptions que Claude Code écrit déjà (`~/.claude/projects/*/*.jsonl`, ou `$CLAUDE_CONFIG_DIR/projects`) : lecture seule, rien n'est envoyé, aucun jeton consommé. La commande Rust `claude_sessions` renvoie la fin des 20 transcriptions les plus récentes ; `sessions.js` en déduit l'état toutes les 4 secondes.
+- Il prévient (bulle, voix, geste) quand une session vous attend (question `AskUserQuestion`, plan `ExitPlanMode`, ou modification en attente d'accord depuis 15 s) et quand une session rend la main après au moins 20 s de travail. Une pastille en haut compte les sessions au travail et celles qui vous attendent.
+- Réglage « Sessions Claude Code » ; indisponible dans la version navigateur (pas d'accès aux fichiers).
+
+## Installation sur le Mac (simple)
+
+1. Ouvrir https://github.com/EmmanuelNdo/manuvers/releases/latest et télécharger `Manuvers-<version>-mac.zip`.
+2. Ouvrir le .zip, glisser Manuvers dans Applications.
+3. Premier lancement : l'application n'est pas signée par Apple. Fermer l'avertissement, puis Réglages Système > Confidentialité et sécurité > Ouvrir quand même. Ou : `xattr -dr com.apple.quarantine /Applications/Manuvers.app`.
+4. Publier une nouvelle version : mettre à jour la version (package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml), puis pousser une étiquette `vX.Y.Z` sur `main`. Le workflow « App Mac » compile et joint le .zip à la version.
+
+## Installation sur le Mac depuis les sources (développement)
 
 1. Outils :
    - `xcode-select -p` ; si absent : `xcode-select --install` (attendre la fin de l'installation graphique).
@@ -80,6 +106,7 @@ Le Rust a été vérifié avec `cargo check` sous Linux et le frontend testé da
 - [ ] Mode flottant : fond réellement transparent (nécessite `macOSPrivateApi: true`, déjà activé).
 - [ ] Son : WKWebView peut exiger un clic avant de jouer de l'audio. Le bouton « Activer le son » apparaît alors ; vérifier qu'un clic suffit et que le son continue ensuite.
 - [ ] Voix de Lambert (Piper) dans WKWebView : l'indication « Voix de Lambert prête » doit apparaître dans les réglages après activation. Sinon, la voix du système prend le relais (voir la console web). Vérifier aussi que la première phrase arrive en moins de deux secondes.
+- [ ] Conversation dans WKWebView : la reconnaissance vocale (`webkitSpeechRecognition`) et l'autorisation micro (Info.plist) fonctionnent-elles ? Sinon, la saisie au clavier (touche T) reste disponible.
 - [ ] `caffeinate` : pendant les heures réglées, `pgrep -fl caffeinate` doit montrer le processus lié à Manuvers.
 - [ ] Icône de barre des menus lisible en mode clair et sombre (sinon générer une icône « template » monochrome).
 - [ ] Débrancher puis rebrancher l'écran externe : Manuvers se replie sur l'écran principal puis revient (vérification toutes les 15 s).
@@ -97,7 +124,9 @@ Le Rust a été vérifié avec `cargo check` sous Linux et le frontend testé da
 - **V1** : avatar procédural, 4 réactions, bulle, sons, voix, ntfy robuste, modes scène et flottant, démarrage auto, écran maintenu allumé.
 - **V1.1** : Lambert, droïde LB-93 : personnalité, commentaires, refus, bouderie, remarques spontanées, heures de silence, gestes expressifs, servomoteurs.
 - **V1.2** : voix locale Piper avec filtre de droïde et bouche synchronisée sur le son ; design usé au standard L3-37.
-- **V1.3 (actuelle)** : vie autonome (tablette, lecture, méditation, entretien, étirements, veille), accessoires, cent punchlines.
+- **V1.3** : vie autonome (tablette, lecture, méditation, entretien, étirements, veille), accessoires, cent punchlines.
+- **V3, première étape** : conversation vocale ou écrite avec Claude, mémoire persistante et souvenirs, Kleos par MCP.
+- **0.4 (actuelle)** : application Mac téléchargeable depuis Releases (compilée par GitHub Actions), suivi local des sessions Claude Code.
 - **V2** : avatar personnel au format VRM (VRoid Studio) chargé avec `@pixiv/three-vrm` (à embarquer localement), animations Mixamo, humeurs par source (Kleos, veille, mails), clic sur la bulle pour ouvrir la fiche Kleos, résumé vocal du matin.
-- **V3** : conversation. Micro, transcription, appel à l'API Claude avec les connecteurs (Kleos, mails, Notion), réponse vocale avec synchronisation labiale.
+- **V3, suite** : mails et Notion par leurs propres serveurs MCP, mot d'éveil « Lambert », transcription locale (Whisper) si la reconnaissance du système ne suffit pas, clé d'API dans le trousseau macOS.
 - Sécurisation : sujet réservé avec jeton sur ntfy.sh, ou serveur ntfy auto-hébergé (Docker sur un petit VPS).
