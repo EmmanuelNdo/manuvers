@@ -39,6 +39,26 @@
       <div class="dismiss">Cliquez pour fermer</div>
     </div>
     <div class="queue" id="queue" hidden></div>
+
+    <!-- Parler à Lambert : application seulement, et seulement avec une clé de l'API Claude. -->
+    <form class="ask app-only" id="askForm" hidden autocomplete="off">
+      <button type="button" class="pill mic" id="micBtn" title="Maintenir pour parler (ou maintenir la barre d'espace)">Parler</button>
+      <input type="text" id="askInput" placeholder="Parlez à Lambert, ou écrivez-lui…" spellcheck="true">
+      <button type="submit" class="pill primary" id="askSend">Envoyer</button>
+      <span class="ask-state" id="askState" aria-live="polite"></span>
+    </form>
+
+    <!-- Avant toute écriture dans Kleos : votre « oui ». -->
+    <div class="confirm" id="confirm" hidden role="alertdialog" aria-labelledby="confirmTitle">
+      <strong id="confirmTitle">Lambert veut écrire dans Kleos</strong>
+      <p id="confirmText"></p>
+      <pre id="confirmArgs"></pre>
+      <div class="row">
+        <button class="btn" id="confirmYes">Oui, enregistrer</button>
+        <button class="btn ghost" id="confirmNo">Non</button>
+      </div>
+      <p class="hint">Vous pouvez aussi répondre « oui » ou « non » au micro.</p>
+    </div>
   </main>
 
   <aside class="drawer" id="drawer" hidden aria-label="Réglages">
@@ -121,6 +141,38 @@
       </div>
     </section>
 
+    <section class="app-only">
+      <h2>Intelligence de Lambert (API Claude)</h2>
+      <p class="hint">Avec une clé de l'API Claude, Lambert écrit ses commentaires lui-même et vous pouvez lui parler de Kleos. La clé va dans le trousseau du Mac : elle ne passe jamais par cette fenêtre.</p>
+      <label class="field" for="iaCle">Clé de l'API Claude
+        <input type="password" id="iaCle" spellcheck="false" autocomplete="off" placeholder="sk-ant-...">
+      </label>
+      <div class="row">
+        <button class="btn" id="iaCleBtn">Enregistrer dans le trousseau</button>
+        <button class="btn ghost" id="iaCleEffacer">Effacer la clé</button>
+      </div>
+      <p class="hint" id="iaCleEtat"></p>
+      <label class="field" for="iaModele">Modèle
+        <select id="iaModele">
+          <option value="claude-opus-5-5">Claude Opus 5.5 : le plus fin</option>
+          <option value="claude-sonnet-5-5">Claude Sonnet 5.5 : plus rapide, deux fois moins cher</option>
+          <option value="claude-haiku-5-5">Claude Haiku 5.5 : instantané, quelques centimes par mois</option>
+        </select>
+      </label>
+      <div class="toggles">
+        <label for="optIaQuips"><input type="checkbox" id="optIaQuips"> Commentaires écrits par Claude (sinon : ses répliques habituelles)</label>
+      </div>
+      <label class="field" for="kleosUrl">Kleos (adresse du connecteur)
+        <input type="text" id="kleosUrl" spellcheck="false" autocomplete="off" placeholder="https://admin.datando.fr/api/mcp">
+      </label>
+      <div class="row">
+        <button class="btn" id="kleosBtn">Connecter Kleos</button>
+        <button class="btn ghost" id="kleosOff">Déconnecter</button>
+      </div>
+      <p class="hint" id="kleosEtat"></p>
+      <p class="hint" id="iaConso"></p>
+    </section>
+
     <section>
       <h2>Comportement</h2>
       <div class="toggles">
@@ -155,6 +207,8 @@
 <script src="persona.js"></script>
 <script src="voice.js"></script>
 <script src="ntfy.js"></script>
+<script src="assistant.js"></script>
+<script src="micro.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

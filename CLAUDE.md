@@ -17,6 +17,9 @@ src/                  Frontend statique, servi tel quel par Tauri (aucun bundler
   voice-worker.js     Worker de synthèse : phonétisation espeak-ng (WASM) puis inférence ONNX, phrase par phrase
   voices/             Modèle de voix Piper (fr_FR-tom-medium, 44,1 kHz)
   ntfy.js             Client ntfy robuste : flux JSON, jeton, rattrapage "since", reconnexion
+  assistant.js        Lambert branché sur l'API Claude : commentaires écrits, conversation avec les outils
+                      de Kleos (client MCP), confirmation avant écriture, journal de consommation
+  micro.js            Reconnaissance vocale (fr-FR), appui pour parler ; reponseOuiNon() pour les confirmations
   app.js              Réglages, file de notifications, sons, voix, écrans, veille, menu
   vendor/three.min.js Three.js r128 (UMD) embarqué : pas de CDN
   vendor/onnx/        onnxruntime-web (WASM), vendor/piper/ : phonétiseur Piper ; licences dans vendor/LICENCES.md
@@ -24,6 +27,10 @@ src/                  Frontend statique, servi tel quel par Tauri (aucun bundler
 src-tauri/            Coque native Tauri v2, volontairement mince
   src/main.rs         Commandes : list_monitors, apply_mode, set_click_through, set_keep_awake, set_autostart
                       + icône de barre des menus (événement "tray" émis vers le frontend)
+  src/ia.rs           Secrets au trousseau macOS (clé de l'API Claude, jetons Kleos) et les appels qui en ont
+                      besoin : claude_messages, kleos_mcp, kleos_connecter (OAuth 2.1 + PKCE, retour sur
+                      127.0.0.1:8766). Aucune clé ne passe par la page.
+  Info.plist          Textes des autorisations micro et reconnaissance vocale (fusionné par Tauri)
   tauri.conf.json     Fenêtre transparente sans bordure, macOSPrivateApi, CSP stricte
 scripts/notify-test.sh  Envoi d'une notification de test
 docs/INTEGRATIONS.md    Brancher tâches planifiées, hooks Claude Code, Kleos
@@ -36,8 +43,10 @@ Les réglages sont stockés dans le `localStorage` du webview (clé `manuvers:se
 ## Règles du projet
 
 - Interface en français, vouvoiement. Jamais de tiret cadratin (U+2014) dans les textes : utiliser deux-points, virgule ou point.
-- Aucune ressource externe au chargement : tout est local (Three.js, polices). La seule connexion sortante est ntfy.
-- Garder le Rust minimal : placement des fenêtres et fonctions système. La logique reste en JavaScript.
+- Aucune ressource externe au chargement : tout est local (Three.js, polices). Connexions sortantes : ntfy depuis la page ; l'API Claude et Kleos depuis la coque native seulement (ia.rs), parce qu'elles portent des secrets.
+- Garder le Rust minimal : placement des fenêtres, fonctions système, et garde des secrets (ia.rs : trousseau et appels signés). La logique, y compris celle de la conversation, reste en JavaScript.
+- Aucune clé ni aucun jeton dans le dépôt, dans `localStorage` ou dans la page : trousseau uniquement. Le dépôt et sa version GitHub Pages sont publics.
+- Lambert n'écrit jamais dans Kleos sans votre « oui » : tout outil hors de la liste `LECTURE` d'assistant.js passe par le panneau de confirmation. Liste d'autorisation, pas d'interdiction : un nouvel outil d'écriture est confirmé par défaut.
 - Le frontend doit continuer à fonctionner dans un simple navigateur (`npm run preview`), sans les fonctions d'écran.
 - Ne jamais commiter de jeton ntfy ni de sujet réel.
 
@@ -83,6 +92,16 @@ Le Rust a été vérifié avec `cargo check` sous Linux et le frontend testé da
 - [ ] `caffeinate` : pendant les heures réglées, `pgrep -fl caffeinate` doit montrer le processus lié à Manuvers.
 - [ ] Icône de barre des menus lisible en mode clair et sombre (sinon générer une icône « template » monochrome).
 - [ ] Débrancher puis rebrancher l'écran externe : Manuvers se replie sur l'écran principal puis revient (vérification toutes les 15 s).
+- [ ] Trousseau : après « Enregistrer dans le trousseau », l'entrée `fr.datando.manuvers` / `anthropic` apparaît dans Trousseaux d'accès ; macOS peut demander l'autorisation au premier accès.
+- [ ] Micro : `webkitSpeechRecognition` dans WKWebView. Les demandes d'autorisation micro et reconnaissance vocale doivent apparaître au premier appui sur « Parler » (textes dans Info.plist). Si le bouton « Parler » n'apparaît pas, l'API n'est pas exposée dans cette version de WebKit : il faudra passer par SFSpeechRecognizer côté natif.
+- [ ] Connexion Kleos : le navigateur s'ouvre, l'accord Kleos renvoie vers `http://127.0.0.1:8766/oauth/kleos`, et les réglages affichent « Kleos connecté ». Prérequis côté Supabase : inscription dynamique des clients OAuth autorisée (c'est elle que Claude utilise déjà).
+
+## Lambert et l'API Claude (V3, en cours)
+
+- Réglages, section « Intelligence de Lambert » : la clé de l'API Claude part au trousseau (service `fr.datando.manuvers`), le modèle se choisit (Opus 5.5 par défaut, effort bas pour la vitesse), « Connecter Kleos » ouvre le navigateur sur l'accord OAuth de Kleos.
+- Commentaires : pour une réaction ordinaire (`persona.react` renvoie `ordinaire`), `assistant.commenter` demande un commentaire à Claude, l'attend cinq secondes au plus, le vérifie (pas de tiret cadratin, pas de tutoiement, 260 caractères au plus) et retombe sur la réplique fixe sinon. Les refus de nuit, l'urgence et la lassitude ne sont jamais réécrits.
+- Conversation : barre en bas de l'écran, bouton « Parler » ou barre d'espace maintenus. Les outils de Kleos sont lus par `tools/list` ; la lecture part seule, l'écriture attend « Oui, enregistrer » ou un « oui » au micro. Historique effacé après dix minutes de silence ou quarante messages (jamais tronqué en cours : cela invaliderait le raisonnement déjà fourni).
+- Coût : journal par mois dans `localStorage` (`manuvers:consommation`, des compteurs, aucun contenu), affiché dans les réglages.
 
 ## Commandes utiles
 
@@ -99,5 +118,5 @@ Le Rust a été vérifié avec `cargo check` sous Linux et le frontend testé da
 - **V1.2** : voix locale Piper avec filtre de droïde et bouche synchronisée sur le son ; design usé au standard L3-37.
 - **V1.3 (actuelle)** : vie autonome (tablette, lecture, méditation, entretien, étirements, veille), accessoires, cent punchlines.
 - **V2** : avatar personnel au format VRM (VRoid Studio) chargé avec `@pixiv/three-vrm` (à embarquer localement), animations Mixamo, humeurs par source (Kleos, veille, mails), clic sur la bulle pour ouvrir la fiche Kleos, résumé vocal du matin.
-- **V3** : conversation. Micro, transcription, appel à l'API Claude avec les connecteurs (Kleos, mails, Notion), réponse vocale avec synchronisation labiale.
+- **V3 (en cours)** : conversation. Micro, transcription, appel à l'API Claude avec les outils de Kleos (y compris ses mails en lecture), confirmation avant écriture, réponse vocale avec synchronisation labiale, commentaires écrits par Claude. Reste : Notion.
 - Sécurisation : sujet réservé avec jeton sur ntfy.sh, ou serveur ntfy auto-hébergé (Docker sur un petit VPS).

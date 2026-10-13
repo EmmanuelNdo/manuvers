@@ -16,7 +16,8 @@ const DEFAULTS = {
   mode:"scene", monitor:"", clickThrough:false,
   sound:true, voice:false, bored:true, autostart:true,
   quips:true, chatty:true, quiet:true, quietFrom:"21:30", quietTo:"07:30", met:false, timbre:0.6,
-  keepAwake:true, awakeFrom:"08:30", awakeTo:"19:00", weekdays:true
+  keepAwake:true, awakeFrom:"08:30", awakeTo:"19:00", weekdays:true,
+  iaModele:"claude-opus-5-5", iaQuips:true, kleosUrl:"https://admin.datando.fr/api/mcp"
 };
 const S = (() => {
   let saved = {};
@@ -99,7 +100,7 @@ function updateQueue(){
   const q = $("queue"); q.hidden = queue.length === 0;
   q.textContent = queue.length + (queue.length > 1 ? " notifications en attente" : " notification en attente");
 }
-function showNext(){
+async function showNext(){
   const ev = queue.shift(); updateQueue();
   if(!ev){ current = null; avatar.setMood(null); return; }
   current = ev;
@@ -115,9 +116,15 @@ function showNext(){
   }
   if(!ev.silent) avatar.setSulk(false);
   gesture(r.action);
+  if(!ev.silent && r.sound) chime(ev.type);
+  // Commentaire écrit par Claude, s'il arrive à temps ; sinon la réplique habituelle.
+  if(!ev.silent && r.ordinaire && S.quips && S.iaQuips && ia.pret()){
+    const ecrit = await ia.commenter(ev, 5000);
+    if(current !== ev) return;
+    if(ecrit) r.quip = ecrit;
+  }
   const quip = [r.quip, r.outro].filter(Boolean).join(" ");
   if(!ev.silent){
-    if(r.sound) chime(ev.type);
     if(r.voice && S.voice) speak([r.quip, ev.title, ev.message, r.outro]);
     else talkFor(quip + " " + (ev.message || ""));
   } else talkFor(ev.message || "");
@@ -239,6 +246,112 @@ function speak(parts){
     onend:() => avatar.setTalking(false)
   });
 }
+
+/* ---------- Parler à Lambert (API Claude et Kleos) ---------- */
+const ia = window.createAssistant({ invoke, getSettings:() => S, persona });
+let confirmation = null, enConversation = false;
+
+function etatIa(texte){ $("askState").textContent = texte || ""; }
+function majIa(etat){
+  const pret = !!(etat && etat.cle);
+  $("askForm").hidden = !pret;
+  document.documentElement.classList.toggle("ia", pret);
+  $("iaCleEtat").textContent = pret ? "Clé enregistrée dans le trousseau du Mac." : "Aucune clé : Lambert garde ses répliques habituelles.";
+  $("kleosEtat").textContent = etat && etat.kleos ? "Kleos connecté : Lambert lit vos fiches et vous demande confirmation avant d'écrire." : "Kleos non connecté.";
+  const c = ia.consommation();
+  $("iaConso").textContent = c.appels ? `Ce mois-ci sur cet appareil : ${c.appels} appel(s), environ ${c.cout.toFixed(2).replace(".", ",")} $.` : "";
+}
+function demanderConfirmation(d){
+  return new Promise(resolve => {
+    confirmation = resolve;
+    $("confirmText").textContent = d.annonce || ("Lambert veut utiliser « " + d.outil + " ».");
+    $("confirmArgs").textContent = JSON.stringify(d.arguments || {}, null, 2);
+    $("confirm").hidden = false;
+    const phrase = (d.annonce ? d.annonce + " " : "") + "Je confirme ?";
+    handle({ type:"persona", title:"Confirmation", message:phrase, silent:true, action:"tap" });
+    if(S.sound) speak([phrase]);
+  });
+}
+function repondreConfirmation(ok){
+  if(!confirmation) return false;
+  const r = confirmation; confirmation = null;
+  $("confirm").hidden = true;
+  r(ok);
+  return true;
+}
+$("confirmYes").addEventListener("click", () => repondreConfirmation(true));
+$("confirmNo").addEventListener("click", () => repondreConfirmation(false));
+
+async function demander(texte, aLOral){
+  texte = (texte || "").trim();
+  if(!texte) return;
+  // Pendant une confirmation, un « oui » ou un « non » y répond.
+  if(confirmation){
+    const oui = window.reponseOuiNon(texte);
+    if(oui !== null){ repondreConfirmation(oui); return; }
+    etatIa("Répondez « oui » ou « non », je vous prie.");
+    return;
+  }
+  if(enConversation){ etatIa("Un instant, je termine ma réponse précédente."); return; }
+  enConversation = true;
+  ensureAudio();
+  lastActivity = Date.now();
+  if(avatar.activity()) avatar.setActivity(null);
+  etatIa("Lambert réfléchit…");
+  try{
+    const reponse = await ia.converser(texte, { confirmer:demanderConfirmation, etat:etatIa });
+    if(current && current.silent) closeBubble();
+    handle({ type:"persona", title:"", message:reponse, silent:true, action:"wave" });
+    if(S.voice || aLOral) speak([reponse]);
+  }catch(e){
+    console.warn("Conversation :", e);
+    handle({ type:"persona", title:"", message:"Ma liaison avec Claude vient de lâcher. " + (e.message || e), silent:true, action:"no" });
+  }finally{
+    enConversation = false; etatIa(""); majIa(await ia.rafraichir());
+  }
+}
+$("askForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const t = $("askInput").value; $("askInput").value = "";
+  demander(t, false);
+});
+
+/* Le micro : appui pour parler, sur le bouton ou la barre d'espace. */
+const micro = window.createMicro({
+  onPartiel:t => { $("askInput").value = t; },
+  onFinal:t => { $("askInput").value = ""; demander(t, true); },
+  onEtat:(etat, msg) => {
+    $("micBtn").classList.toggle("on", etat === "ecoute");
+    etatIa(etat === "ecoute" ? "Je vous écoute…" : etat === "erreur" ? msg : "");
+  }
+});
+if(!micro.disponible){ $("micBtn").hidden = true; }
+const micBtn = $("micBtn");
+micBtn.addEventListener("pointerdown", e => { e.preventDefault(); voice.cancel(); micro.demarrer(); });
+["pointerup","pointerleave","pointercancel"].forEach(t => micBtn.addEventListener(t, () => micro.arreter()));
+let espace = false;
+window.addEventListener("keydown", e => {
+  if(e.code !== "Space" || e.repeat || $("askForm").hidden || !micro.disponible) return;
+  if(/INPUT|SELECT|TEXTAREA|BUTTON/.test(document.activeElement.tagName)) return;
+  e.preventDefault(); espace = true; voice.cancel(); micro.demarrer();
+});
+window.addEventListener("keyup", e => { if(e.code === "Space" && espace){ espace = false; micro.arreter(); } });
+
+/* Réglages de l'intelligence */
+$("iaCleBtn").addEventListener("click", async () => {
+  const cle = $("iaCle").value; $("iaCle").value = "";
+  try{ majIa(await ia.enregistrerCle(cle)); }catch(e){ $("iaCleEtat").textContent = String(e); }
+});
+$("iaCleEffacer").addEventListener("click", async () => { majIa(await ia.effacerCle()); });
+$("iaModele").addEventListener("change", () => { S.iaModele = $("iaModele").value; save(); });
+$("optIaQuips").addEventListener("change", () => { S.iaQuips = $("optIaQuips").checked; save(); });
+$("kleosBtn").addEventListener("click", async () => {
+  S.kleosUrl = $("kleosUrl").value.trim() || DEFAULTS.kleosUrl; save();
+  $("kleosEtat").textContent = "Votre navigateur s'ouvre : connectez-vous à Kleos et acceptez l'accès de Manuvers.";
+  try{ majIa(await ia.connecterKleos(S.kleosUrl)); }
+  catch(e){ $("kleosEtat").textContent = "Connexion impossible : " + e; }
+});
+$("kleosOff").addEventListener("click", async () => { majIa(await ia.deconnecterKleos()); });
 
 /* ---------- ntfy ---------- */
 function classify(tags, priority){
@@ -418,6 +531,7 @@ function syncForm(){
   $("quietFrom").value = S.quietFrom; $("quietTo").value = S.quietTo;
   $("timbre").value = Math.round(S.timbre*100);
   for(const [id, k] of Object.entries(CHECKS)) $(id).checked = !!S[k];
+  $("iaModele").value = S.iaModele; $("optIaQuips").checked = !!S.iaQuips; $("kleosUrl").value = S.kleosUrl;
 }
 for(const [id, k] of Object.entries(CHECKS)){
   $(id).addEventListener("change", () => {
@@ -485,6 +599,7 @@ if(listen){
   ensureAudio();
   if(S.voice) voice.preload();
   connect();
+  majIa(await ia.rafraichir());
   setTimeout(() => {
     if(current || queue.length) return;
     const g = persona.greeting(new Date(), !S.met);

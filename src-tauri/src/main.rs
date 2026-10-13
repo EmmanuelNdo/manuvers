@@ -2,8 +2,12 @@
 // Le Rust reste volontairement mince : placement de la fenêtre sur le bon écran,
 // icône de barre des menus, lancement au démarrage, maintien de l'écran allumé.
 // Toute la logique métier (ntfy, animations, réglages) vit dans ../src.
+// Exception assumée : ia.rs garde les secrets au trousseau et fait les appels qui en
+// ont besoin (API Claude, Kleos), pour qu'aucune clé ne transite par la page.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod ia;
 
 use std::process::Child;
 use std::sync::Mutex;
@@ -221,7 +225,15 @@ fn main() {
             apply_mode,
             set_click_through,
             set_keep_awake,
-            set_autostart
+            set_autostart,
+            ia::cle_claude_enregistrer,
+            ia::cle_claude_presente,
+            ia::cle_claude_effacer,
+            ia::claude_messages,
+            ia::kleos_connecter,
+            ia::kleos_etat,
+            ia::kleos_deconnecter,
+            ia::kleos_mcp
         ])
         .setup(|app| {
             build_tray(app)?;
